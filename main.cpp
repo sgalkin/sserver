@@ -1,66 +1,90 @@
+#include "server.h"
+#include "exception.h"
+#include "log.h"
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
-
 #include <iostream>
-#include <sstream>
-
+#include <pwd.h>
 #include <sys/types.h>
+
 #include <ifaddrs.h>
-
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
-#include <sys/stat.h>
+#include <netdb.h>
 #include <fcntl.h>
-
+#include <sys/socket.h>
+#include <fstream>
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
 
-#define REQUIRE(cond, message)                  \
-    do {                                        \
-        if(!(cond)) {                           \
-            std::stringstream s;                \
-            s << message;                       \
-            throw std::runtime_error(s.str());  \
-        }                                       \
-    } while(false)                              \
-
-#define CHECK_CALL(callee, message)             \
-    do {                                        \
-        if((callee) == -1) {                    \
-            std::stringstream s;                \
-            s << (message) << " ";              \
-            throw std::runtime_error(s.str());                     \
-        }                                                          \
-    } while(false)                                                 \
-
-//TODO: don't forget to drop privilegies after bind
-
 class Interfaces : boost::noncopyable {
 public:
-    Interfaces() {
-        CHECK_CALL(getifaddrs(&interfaces_),
-                   "Error while reading interfaces: ");
-    }
-
-    operator const struct ifaddrs*() const {
-        return interfaces_;
-    }
-
-    ~Interfaces() {
-        freeifaddrs(interfaces_);
-    }
-
+    Interfaces() { CHECK_CALL(getifaddrs(&interfaces_), "Error while reading interfaces: "); }
+    ~Interfaces() { freeifaddrs(interfaces_); }
+    operator const struct ifaddrs*() const { return interfaces_; }
 private:
     struct ifaddrs* interfaces_;
 };
 
+void list_interfaces() {
+    Interfaces ifs;
+    for(const struct ifaddrs* i = ifs; i; i = i->ifa_next) {
+        if(!i->ifa_addr ||
+           !(i->ifa_addr->sa_family == AF_INET ||
+             i->ifa_addr->sa_family == AF_INET6))
+            continue;
+        char host[NI_MAXHOST];
+        CHECK_CALL_ERROR(getnameinfo(i->ifa_addr,
+                                     i->ifa_addr->sa_family == AF_INET ?
+                                     sizeof(sockaddr_in) : sizeof(sockaddr_in6),
+                                     host, sizeof(host), 0, 0,
+                                     NI_NUMERICHOST | NI_NUMERICSERV),
+                         "Error while processing interface " << i->ifa_name << ": ",
+                         gai_strerror);
+        std::cout << i->ifa_name << " " << i->ifa_addr->sa_family << " " << host << std::endl;
+    }
+}
+
+void child() {
+    pid_t pid;
+    if((pid = ::fork()) < 0) {
+        char dummy;
+        THROW("fork: " << strerror_r(errno, &dummy, sizeof(dummy)));
+    }
+    else if(pid > 0) exit(0);
+}
+
+void daemonize() {
+    DEBUG("Daemonization");
+    child();
+    CHECK_CALL(setsid(), "setsid: ");
+    umask(0);
+    CHECK_CALL(chdir("/"), "chdir: ");
+    child();
+    // TODO: close all descriptors
+    // TODO: change to constants
+    close(0);
+    close(1);
+    close(2);
+//    for(int i = 0; i < sysconf(_SC_OPEN_MAX); ++i) close(i);
+    CHECK_CALL(open("/dev/null", O_RDONLY), "stdin: ");
+    CHECK_CALL(open("/dev/null", O_RDWR), "stdout: ");
+    CHECK_CALL(open("/dev/null", O_RDWR), "stderr: ");
+}
+
+void switch_user(const std::string& user) {
+    DEBUG("Changing user to: " << user);
+    std::string buf(sysconf(_SC_GETPW_R_SIZE_MAX), 0);
+    struct passwd pwd;
+    struct passwd* result = 0;
+    CHECK_CALL(getpwnam_r(user.c_str(), &pwd,
+                          &buf[0], buf.size(), &result), "getpwnam_r: ");
+    CHECK_CALL(setuid(pwd.pw_uid), "setuid: ");
+}
 
 int main(int argc, char* argv[]) {
     po::options_description configuration("Configuration");
 //TODO: think about negative port number
+//TODO: think about interface aliases
     configuration.add_options()
         ("daemon", po::value<bool>()->default_value(false), "Daemon mode")
         ("tcp_if", po::value<std::string>()->default_value("lo"), "TCP interface")
@@ -75,7 +99,9 @@ int main(int argc, char* argv[]) {
     po::options_description program("Program options");
     program.add_options()
         ("help,h", "Help")
-        ("config,c", po::value<std::string>()->default_value("/etc/sserver.conf"));
+        ("config,c", po::value<std::string>()->default_value("/etc/sserver.conf"))
+        ("user,u", po::value<std::string>()->default_value("nobody"),
+         "Unprivileged user switch to");
 
     try {
         po::variables_map program_vm;
@@ -90,16 +116,40 @@ int main(int argc, char* argv[]) {
         std::string config = program_vm["config"].as<std::string>();
         REQUIRE(fs::exists(config), "Configuration file: " << config << " not found");
 
+        DEBUG("Reading config: " << config);
         po::variables_map config_vm;
         po::store(po::parse_config_file<char>(config.c_str(), configuration), config_vm);
         po::notify(config_vm);
+        set_level(Logger::DEBUG);
+        CHECK_CALL(open("tttt", O_WRONLY | O_CREAT | O_APPEND,
+                        S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH), "open log failed");
+        set_log(4);
+        DEBUG("AAAA");
         REQUIRE(config_vm.count("datafile"), "datafile parameter not specified");
+        REQUIRE(geteuid() == 0 || config_vm["tcp_port"].as<unsigned short>() > 1024,
+                "Only root can use tcp_port less then 1024");
+        REQUIRE(geteuid() == 0 || config_vm["udp_port"].as<unsigned short>() > 1024,
+                "Only root can use udp_port less then 1024");
+
+        Server server(config_vm);
+        for(int i = 0; i < 1024; ++i) {
+            if(fcntl(i, F_GETFL) != -1) std::cout << i << std::endl;
+        }
+        if(getuid() == 0) {
+            switch_user(program_vm["user"].as<std::string>());
+        }
+        if(config_vm["daemon"].as<bool>()) daemonize();
+        // std::ofstream of("/home/sergo/work/skype/sserver/123");
+        // std::cout << sysconf(_SC_OPEN_MAX) << std::endl;
+        // for(int i = 0; i < 1024; ++i) {
+        //     if(fcntl(i, F_GETFL) != -1) of << i << std::endl;
+        // }
+
+//        server.process();
 
     } catch(std::exception& ex) {
-        std::cerr << ex.what() << std::endl;
+        FATAL(ex.what());
         return 1;
     }
-    Interfaces i;
-    CHECK_CALL(open("foo", O_RDONLY), "error");
     return 0;
 }
