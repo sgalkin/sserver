@@ -4,6 +4,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <cstring>
+#include <errno.h>
 
 #define THROW(message)                          \
     do {                                        \
@@ -22,15 +23,15 @@
     do {                                                                \
         if((callee) == -1) {                                            \
             char dummy;                                                 \
-            THROW(message << strerror_r(errno, &dummy, sizeof(dummy))); \
+            THROW(message << " " << strerror_r(errno, &dummy, sizeof(dummy))); \
         }                                                               \
     } while(false)                                                      \
 
-#define CHECK_CALL_ERROR(callee, message, error)    \
-    do {                                            \
-        int r = (callee);                           \
-        if(r != 0) THROW(message << (error(r)));    \
-    } while(false)                                  \
+#define CHECK_CALL_ERROR(callee, message, error)         \
+    do {                                                 \
+        int r = (callee);                                \
+        if(r != 0) THROW(message << " " << (error(r)));  \
+    } while(false)                                       \
 
 
 #endif // SSERVER_EXCEPTION_H_INCLUDED

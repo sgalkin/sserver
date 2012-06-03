@@ -67,7 +67,7 @@ inline const char* asString(Logger::Level level) {
     } while(false)                                      \
 
 #define DEBUG(message) MESSAGE(Logger::DEBUG, message)
-#define WANR(message) MESSAGE(Logger::WARN, message)
+#define WARN(message) MESSAGE(Logger::WARN, message)
 #define ERROR(message) MESSAGE(Logger::ERROR, message)
 #define FATAL(message) MESSAGE(Logger::FATAL, message)
 

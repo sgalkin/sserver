@@ -7,42 +7,10 @@
 #include <pwd.h>
 #include <sys/types.h>
 
-#include <ifaddrs.h>
-#include <netdb.h>
 #include <fcntl.h>
-#include <sys/socket.h>
-#include <fstream>
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
-
-class Interfaces : boost::noncopyable {
-public:
-    Interfaces() { CHECK_CALL(getifaddrs(&interfaces_), "Error while reading interfaces: "); }
-    ~Interfaces() { freeifaddrs(interfaces_); }
-    operator const struct ifaddrs*() const { return interfaces_; }
-private:
-    struct ifaddrs* interfaces_;
-};
-
-void list_interfaces() {
-    Interfaces ifs;
-    for(const struct ifaddrs* i = ifs; i; i = i->ifa_next) {
-        if(!i->ifa_addr ||
-           !(i->ifa_addr->sa_family == AF_INET ||
-             i->ifa_addr->sa_family == AF_INET6))
-            continue;
-        char host[NI_MAXHOST];
-        CHECK_CALL_ERROR(getnameinfo(i->ifa_addr,
-                                     i->ifa_addr->sa_family == AF_INET ?
-                                     sizeof(sockaddr_in) : sizeof(sockaddr_in6),
-                                     host, sizeof(host), 0, 0,
-                                     NI_NUMERICHOST | NI_NUMERICSERV),
-                         "Error while processing interface " << i->ifa_name << ": ",
-                         gai_strerror);
-        std::cout << i->ifa_name << " " << i->ifa_addr->sa_family << " " << host << std::endl;
-    }
-}
 
 void child() {
     pid_t pid;
@@ -56,9 +24,9 @@ void child() {
 void daemonize() {
     DEBUG("Daemonization");
     child();
-    CHECK_CALL(setsid(), "setsid: ");
+    CHECK_CALL(setsid(), "setsid:");
     umask(0);
-    CHECK_CALL(chdir("/"), "chdir: ");
+    CHECK_CALL(chdir("/"), "chdir:");
     child();
     // TODO: close all descriptors
     // TODO: change to constants
@@ -66,9 +34,9 @@ void daemonize() {
     close(1);
     close(2);
 //    for(int i = 0; i < sysconf(_SC_OPEN_MAX); ++i) close(i);
-    CHECK_CALL(open("/dev/null", O_RDONLY), "stdin: ");
-    CHECK_CALL(open("/dev/null", O_RDWR), "stdout: ");
-    CHECK_CALL(open("/dev/null", O_RDWR), "stderr: ");
+    CHECK_CALL(open("/dev/null", O_RDONLY), "stdin:");
+    CHECK_CALL(open("/dev/null", O_RDWR), "stdout:");
+    CHECK_CALL(open("/dev/null", O_RDWR), "stderr:");
 }
 
 void switch_user(const std::string& user) {
@@ -76,9 +44,9 @@ void switch_user(const std::string& user) {
     std::string buf(sysconf(_SC_GETPW_R_SIZE_MAX), 0);
     struct passwd pwd;
     struct passwd* result = 0;
-    CHECK_CALL(getpwnam_r(user.c_str(), &pwd,
-                          &buf[0], buf.size(), &result), "getpwnam_r: ");
-    CHECK_CALL(setuid(pwd.pw_uid), "setuid: ");
+    CHECK_CALL(getpwnam_r(user.c_str(), &pwd, &buf[0], buf.size(), &result), "getpwnam:");
+    CHECK_CALL(setuid(pwd.pw_uid), "setuid:");
+    DEBUG("Changed user to: " << user);
 }
 
 int main(int argc, char* argv[]) {
@@ -121,10 +89,10 @@ int main(int argc, char* argv[]) {
         po::store(po::parse_config_file<char>(config.c_str(), configuration), config_vm);
         po::notify(config_vm);
         set_level(Logger::DEBUG);
-        CHECK_CALL(open("tttt", O_WRONLY | O_CREAT | O_APPEND,
-                        S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH), "open log failed");
-        set_log(4);
-        DEBUG("AAAA");
+        // CHECK_CALL(open((std::string(argv[0]) + ".log").c_str(), 
+        //                 O_WRONLY | O_CREAT | O_APPEND,
+        //                 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH), "open log failed");
+        // set_log(3);
         REQUIRE(config_vm.count("datafile"), "datafile parameter not specified");
         REQUIRE(geteuid() == 0 || config_vm["tcp_port"].as<unsigned short>() > 1024,
                 "Only root can use tcp_port less then 1024");
@@ -132,9 +100,9 @@ int main(int argc, char* argv[]) {
                 "Only root can use udp_port less then 1024");
 
         Server server(config_vm);
-        for(int i = 0; i < 1024; ++i) {
-            if(fcntl(i, F_GETFL) != -1) std::cout << i << std::endl;
-        }
+        // for(int i = 0; i < 1024; ++i) {
+        //     if(fcntl(i, F_GETFL) != -1) std::cout << i << std::endl;
+        // }
         if(getuid() == 0) {
             switch_user(program_vm["user"].as<std::string>());
         }
@@ -145,7 +113,7 @@ int main(int argc, char* argv[]) {
         //     if(fcntl(i, F_GETFL) != -1) of << i << std::endl;
         // }
 
-//        server.process();
+        server.process();
 
     } catch(std::exception& ex) {
         FATAL(ex.what());

@@ -2,15 +2,21 @@
 #define SSERVER_SERVER_H_INCLUDED
 
 #include <boost/program_options.hpp>
-#include <iostream>
+#include <boost/ptr_container/ptr_map.hpp>
+
+class Socket;
 
 class Server {
 public:
-    explicit Server(const boost::program_options::variables_map& config) {}
-    ~Server() {
-        std::cerr << "AAAA" << std::endl;
-    }
-    void process() { ; }
+    typedef boost::ptr_map<int, Socket> Sockets;
+
+    explicit Server(const boost::program_options::variables_map& config);
+    ~Server();
+
+    void process();      
+
+private:
+    Sockets sockets_;
 };
 
 #endif // SSERVER_SERVER_H_INCLUDED

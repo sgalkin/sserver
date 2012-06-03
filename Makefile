@@ -1,8 +1,11 @@
 TARGET = sserver
 
 SOURCES = \
+	interface.cpp \
 	main.cpp \
 	log.cpp \
+	server.cpp \
+	socket.cpp \
 
 LIBS = \
 	boost_filesystem \
@@ -10,7 +13,9 @@ LIBS = \
 	boost_program_options \
 
 TESTS = \
+	tests/test_interface.cpp \
 	tests/test_log.cpp \
+	tests/test_socket.cpp \
 
 TESTS_LIBS = \
 	boost_unit_test_framework \
@@ -19,7 +24,7 @@ CXXFLAGS = -Wall -Werror -Wno-long-long -pedantic -O2 -g -MD
 LDFLAGS += $(addprefix -l,${LIBS})
 TESTS_LDFLAGS += $(addprefix -l,${TESTS_LIBS})
 
-all: ${TARGET}
+all: ${TARGET} check
 	./$< -c config/sserver.conf
 
 ${TARGET}: ${SOURCES:.cpp=.o} Makefile
@@ -31,9 +36,11 @@ clean:
 	${RM} ${SOURCES:.cpp=.o} ${SOURCES:.cpp=.d} ${TARGET}
 	${RM} ${TESTS:.cpp=} ${TESTS:.cpp=.o} ${TESTS:.cpp=.d}
 
+#			$$(findstring $$(patsubst tests/test_%.o,%.o,$(1:.cpp=.o)),$$(SOURCES:.cpp=.o))
 define TEST_template
+#TODO: filter-out main
 $(1:.cpp=): $(1:.cpp=.o) \
-			$$(findstring $$(patsubst tests/test_%.o,%.o,$(1:.cpp=.o)),$$(SOURCES:.cpp=.o)) \
+			$$(filter-out main.o,$$(SOURCES:.cpp=.o)) \
 			Makefile
 	$${LINK.cpp} $$(TESTS_LDFLAGS) $$(filter %.o,$$^) -o $$@
 
@@ -45,3 +52,5 @@ $(foreach test,$(TESTS),$(eval $(call TEST_template,$(test))))
 
 -include $(SOURCES:.cpp=.d)
 -include $(TESTS:.cpp=.d)
+
+.PHONY: check clean all
