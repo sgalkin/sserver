@@ -98,7 +98,7 @@ Socket::Socket(int type, const std::string& host, unsigned short port) :
 
 Peer Socket::accept() const {
     struct sockaddr_in addr;
-    size_t addrlen = sizeof(addr);
+    socklen_t addrlen = sizeof(addr);
     // Here we are after polling, so no error expected
     int result = peer((struct sockaddr*)&addr, &addrlen);
     REQUIRE(addrlen == sizeof(addr), "strange size"); 
@@ -112,7 +112,7 @@ Peer Socket::accept() const {
 UDPSocket::UDPSocket(const std::string& host, unsigned short port) :
     Socket(SOCK_DGRAM, host, port) {}
 
-int UDPSocket::peer(struct sockaddr* addr, size_t* size) const {
+int UDPSocket::peer(struct sockaddr* addr, socklen_t* size) const {
     CHECK_CALL(recvfrom(socket(), 0, 0, 0, addr, size), "recvfrom(" << socket() << ")");
     return socket();
 }
@@ -123,7 +123,7 @@ TCPSocket::TCPSocket(const std::string& host, unsigned short port) :
     CHECK_CALL(listen(socket(), 1024), "listen(" << socket() << ")");
 }
 
-int TCPSocket::peer(struct sockaddr* addr, size_t* size) const {
+int TCPSocket::peer(struct sockaddr* addr, socklen_t* size) const {
     int peer;
     CHECK_CALL((peer = ::accept(socket(), addr, size)), "accept(" << socket() << ")");
     enable(peer, SOL_SOCKET, SO_KEEPALIVE);

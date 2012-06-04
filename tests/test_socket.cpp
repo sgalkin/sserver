@@ -50,7 +50,7 @@ template<>
 struct SocketHelper<UDPSocket> {
     enum { type = SOCK_DGRAM };
     static int accept(int fd) { return recvfrom(fd, 0, 0, 0, 0, 0); }
-    static int connect(int fd, const struct sockaddr* serv, size_t size) { 
+    static int connect(int fd, const struct sockaddr* serv, socklen_t size) { 
         return sendto(fd, "hello", 6, 0, serv, size); 
     }
 };
@@ -59,7 +59,7 @@ template<>
 struct SocketHelper<TCPSocket> {
     enum { type = SOCK_STREAM };
     static int accept(int fd) { return ::accept(fd, 0, 0); }
-    static int connect(int fd, const struct sockaddr* serv, size_t size) {
+    static int connect(int fd, const struct sockaddr* serv, socklen_t size) {
         return ::connect(fd, serv, size);
     }
 };
@@ -81,7 +81,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_socket_accept, socket, Sockets) {
     BOOST_REQUIRE(fcntl(p, F_SETFL, flags | O_NONBLOCK) != -1);
 
     struct sockaddr_in server;
-    size_t size = sizeof(server);
+    socklen_t size = sizeof(server);
     BOOST_REQUIRE(getsockname(s.socket(), (struct sockaddr*)&server, &size) != -1);
 
     int cnt = SocketHelper<socket>::connect(p, (const struct sockaddr*)&server, size);

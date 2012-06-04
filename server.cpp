@@ -44,10 +44,11 @@ void Server::process() {
             BOOST_FOREACH(const struct pollfd& fd, polls) {
                 if((fd.revents & POLLERR) == POLLERR) {
                     int err;
-                    size_t len = sizeof(err);
+                    socklen_t len = sizeof(err);
                     CHECK_CALL(getsockopt(fd.fd, SOL_SOCKET, SO_ERROR, &err, &len),
                                "getsockopt(" << fd.fd << "):");
-                    THROW(err);
+		    char dummy;
+                    THROW(strerror_r(err, &dummy, sizeof(dummy)));
                 }
                 if((fd.revents & POLLHUP) == POLLHUP) {
                     DEBUG("HUP(" << fd.fd << ")");
