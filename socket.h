@@ -28,7 +28,7 @@ public:
     Socket(int type, const std::string& host, unsigned short port);
     virtual ~Socket() {};
 
-    int socket() const { return socket_.get(); }
+    int socket() const { return socket_; }
 
     Peer accept() const;
 
