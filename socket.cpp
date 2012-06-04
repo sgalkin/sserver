@@ -126,5 +126,7 @@ TCPSocket::TCPSocket(const std::string& host, unsigned short port) :
 int TCPSocket::peer(struct sockaddr* addr, size_t* size) const {
     int peer;
     CHECK_CALL((peer = ::accept(socket(), addr, size)), "accept(" << socket() << ")");
+    enable(peer, SOL_SOCKET, SO_KEEPALIVE);
+    unblock(peer);
     return peer;
 }

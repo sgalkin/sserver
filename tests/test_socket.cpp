@@ -96,4 +96,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_socket_accept, socket, Sockets) {
         client.sin_addr.s_addr = peer.second.sin_addr.s_addr;
     }
     BOOST_CHECK(memcmp(&peer.second, &client, size) == 0);
+
+    int res = ::recv(peer.first, 0, 0, 0);
+    BOOST_CHECK(res != -1 || (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)));
 }
