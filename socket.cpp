@@ -21,9 +21,7 @@ public:
                          AI_NUMERICSERV | AI_ADDRCONFIG);
         CHECK_CALL_ERROR(getaddrinfo(host == "*" ? NULL : host.c_str(),
                                      port.c_str(), &hint, &info_),
-                         "Error retriving address information for "
-                         << host << ":" << port,
-                         gai_strerror);
+                         "getaddrinfo(" << host << ":" << port << ")", gai_strerror);
     }
 
     ~Address() {
@@ -44,7 +42,7 @@ std::string socket_name(const struct sockaddr* sa, socklen_t sz) {
     CHECK_CALL_ERROR(getnameinfo(sa, sz,
                                  host, sizeof(host), port, sizeof(port),
                                  NI_NUMERICHOST | NI_NUMERICSERV),
-                     "Couldn't get address name info", gai_strerror);
+                     "getnameinfo", gai_strerror);
     return std::string(host) + ":" + std::string(port);
 }
 
@@ -55,12 +53,6 @@ inline const std::string& socket_type(int type) {
     if(type == SOCK_DGRAM) return udp;
     if(type == SOCK_STREAM) return tcp;
     return unknown;
-}
-
-void unblock(int socket) {
-    int flags = 0;
-    CHECK_CALL((flags = fcntl(socket, F_GETFL, 0)), "fcntl/GET(" << socket << ")");
-    CHECK_CALL(fcntl(socket, F_SETFL, flags | O_NONBLOCK), "fcntl/SET(" << socket << ")");
 }
 
 void enable(int socket, int level, int option) {
@@ -86,7 +78,7 @@ Socket::Socket(int type, const std::string& host, unsigned short port) :
 
     enable(socket_, SOL_SOCKET, SO_REUSEADDR);
     enable(socket_, SOL_SOCKET, SO_KEEPALIVE);
-    unblock(socket_);
+    socket_.set_nonblock();
 
     CHECK_CALL(bind(socket_, info->ai_addr, info->ai_addrlen), "bind(" << socket_ << ")");
 
@@ -127,6 +119,7 @@ int TCPSocket::peer(struct sockaddr* addr, socklen_t* size) const {
     int peer;
     CHECK_CALL((peer = ::accept(socket(), addr, size)), "accept(" << socket() << ")");
     enable(peer, SOL_SOCKET, SO_KEEPALIVE);
-    unblock(peer);
-    return peer;
+    FD fd(peer);
+    fd.set_nonblock();
+    return fd.release();
 }

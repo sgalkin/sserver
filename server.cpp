@@ -40,13 +40,13 @@ void Server::process() {
                    std::back_inserter(polls), &make_poll);
     while(true) {
         try {
-            CHECK_CALL(poll(&polls[0], polls.size(), -1), "poll:");
+            CHECK_CALL(poll(&polls[0], polls.size(), -1), "poll");
             BOOST_FOREACH(const struct pollfd& fd, polls) {
                 if((fd.revents & POLLERR) == POLLERR) {
                     int err;
                     socklen_t len = sizeof(err);
                     CHECK_CALL(getsockopt(fd.fd, SOL_SOCKET, SO_ERROR, &err, &len),
-                               "getsockopt(" << fd.fd << "):");
+                               "getsockopt(" << fd.fd << ")");
 		    char dummy;
                     THROW(strerror_r(err, &dummy, sizeof(dummy)));
                 }

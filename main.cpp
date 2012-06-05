@@ -24,9 +24,9 @@ void child() {
 void daemonize() {
     DEBUG("Daemonization");
     child();
-    CHECK_CALL(setsid(), "setsid:");
+    CHECK_CALL(setsid(), "setsid");
     umask(0);
-    CHECK_CALL(chdir("/"), "chdir:");
+    CHECK_CALL(chdir("/"), "chdir");
     child();
     // TODO: close all descriptors
     // TODO: change to constants
@@ -34,9 +34,9 @@ void daemonize() {
     close(1);
     close(2);
 //    for(int i = 0; i < sysconf(_SC_OPEN_MAX); ++i) close(i);
-    CHECK_CALL(open("/dev/null", O_RDONLY), "stdin:");
-    CHECK_CALL(open("/dev/null", O_RDWR), "stdout:");
-    CHECK_CALL(open("/dev/null", O_RDWR), "stderr:");
+    CHECK_CALL(open("/dev/null", O_RDONLY), "stdin");
+    CHECK_CALL(open("/dev/null", O_RDWR), "stdout");
+    CHECK_CALL(open("/dev/null", O_RDWR), "stderr");
 }
 
 void switch_user(const std::string& user) {
@@ -44,8 +44,8 @@ void switch_user(const std::string& user) {
     std::string buf(sysconf(_SC_GETPW_R_SIZE_MAX), 0);
     struct passwd pwd;
     struct passwd* result = 0;
-    CHECK_CALL(getpwnam_r(user.c_str(), &pwd, &buf[0], buf.size(), &result), "getpwnam:");
-    CHECK_CALL(setuid(pwd.pw_uid), "setuid:");
+    CHECK_CALL(getpwnam_r(user.c_str(), &pwd, &buf[0], buf.size(), &result), "getpwnam_r");
+    CHECK_CALL(setuid(pwd.pw_uid), "setuid");
     DEBUG("Changed user to: " << user);
 }
 

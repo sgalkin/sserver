@@ -38,6 +38,7 @@ private:
   void work() {
     while(true) {
       Handler handler;
+      // TODO: get rid of busy loop when !handler.empty()
       while(true) {
 	{
 	  boost::scoped_lock lock(queue_mutex_);

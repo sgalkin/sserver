@@ -10,8 +10,7 @@ namespace {
 class Interfaces : boost::noncopyable {
 public:
     Interfaces() {
-        CHECK_CALL(getifaddrs(&interfaces_),
-                   "Error while reading interfaces:");
+        CHECK_CALL(getifaddrs(&interfaces_), "getifaddrs");
     }
 
     ~Interfaces() {
@@ -42,8 +41,7 @@ Interface::Interface() {
                                      sizeof(sockaddr_in) : sizeof(sockaddr_in6),
                                      host, sizeof(host), 0, 0,
                                      NI_NUMERICHOST | NI_NUMERICSERV),
-                         "Error while processing interface " << i->ifa_name << ":",
-                         gai_strerror);
+                         "getnameinfo(" << i->ifa_name << ")", gai_strerror);
         DEBUG("Found iface: " << i->ifa_name << " -- " << host);
         ifaces_[i->ifa_name] = host;
     }

@@ -23,14 +23,14 @@
     do {                                                                \
         if((callee) == -1) {                                            \
             char dummy;                                                 \
-            THROW(message << " " << strerror_r(errno, &dummy, sizeof(dummy))); \
+            THROW(message << ": " << strerror_r(errno, &dummy, sizeof(dummy))); \
         }                                                               \
     } while(false)                                                      \
 
 #define CHECK_CALL_ERROR(callee, message, error)         \
     do {                                                 \
         int r = (callee);                                \
-        if(r != 0) THROW(message << " " << (error(r)));  \
+        if(r != 0) THROW(message << ": " << (error(r)));  \
     } while(false)                                       \
 
 
