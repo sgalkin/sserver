@@ -7,8 +7,13 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+class FD;
+
+void swap(FD& lhs, FD& rhs);
 
 class FD : boost::noncopyable {
+    friend void swap(FD&, FD&);
+
 public:
   explicit FD(int fd = -1) : fd_(fd) {}
 
@@ -21,8 +26,8 @@ public:
   }
   
   void reset(int fd = -1) { 
-    close(fd_);
-    fd_ = fd; 
+      FD tmp(fd);
+      swap(*this, tmp);
   }
 
   int release() {
@@ -38,12 +43,16 @@ public:
   void set_nonblock() {
     int flags = 0;
     CHECK_CALL((flags = fcntl(fd_, F_GETFL, 0)), "fcntl/GETFL(" << fd_ << ")");
-    CHECK_CALL(fcntl(fd_, F_SETFL, flags | O_NONBLOCK), "fcntl/SETFL(" << fd_ << ")");
+    CHECK_CALL(fcntl(fd_, F_SETFL, (flags | O_NONBLOCK)), "fcntl/SETFL(" << fd_ << ")");
   }
 
 private:
   int fd_;
 };
+
+inline void swap(FD& lhs, FD& rhs) {
+    std::swap(lhs.fd_, rhs.fd_);
+}
 
 class Pipe {
 public:

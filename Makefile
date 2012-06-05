@@ -13,6 +13,7 @@ LIBS = \
 	boost_program_options \
 
 TESTS = \
+	tests/test_fd.cpp \
 	tests/test_interface.cpp \
 	tests/test_log.cpp \
 	tests/test_socket.cpp \
@@ -45,7 +46,7 @@ $(1:.cpp=): $(1:.cpp=.o) \
 	$${LINK.cpp} $$(TESTS_LDFLAGS) $$(filter %.o,$$^) -o $$@
 
 run_$(notdir $(1:.cpp=)): $(1:.cpp=)
-	./$$<
+	./$$^
 endef
 
 $(foreach test,$(TESTS),$(eval $(call TEST_template,$(test))))

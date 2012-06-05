@@ -1,4 +1,5 @@
 #include "test.h"
+#include "helpers.h"
 #include "../socket.h"
 #include "../log.h"
 #include <boost/mpl/list.hpp>
@@ -9,13 +10,6 @@
 
 typedef boost::mpl::list<UDPSocket, TCPSocket> Sockets;
 
-int count_descriptors() {
-    int count = 0;
-    for(int i = 0; i < sysconf(_SC_OPEN_MAX); ++i) {
-        if(fcntl(i, F_GETFL, 0) != -1) ++count;
-    }
-    return count;
-}
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_socket_invalid, socket, Sockets) {
     set_level(Logger::DEBUG);
