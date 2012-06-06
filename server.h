@@ -1,6 +1,7 @@
 #ifndef SSERVER_SERVER_H_INCLUDED
 #define SSERVER_SERVER_H_INCLUDED
 
+#include "pool.h"
 #include <boost/program_options.hpp>
 #include <boost/ptr_container/ptr_map.hpp>
 
@@ -17,6 +18,7 @@ public:
 
 private:
     Sockets sockets_;
+    Pool pool_;
 };
 
 #endif // SSERVER_SERVER_H_INCLUDED

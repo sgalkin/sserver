@@ -13,11 +13,13 @@ LIBS = \
 	boost_program_options \
 
 TESTS = \
+	tests/test_pool.cpp \
 	tests/test_fd.cpp \
 	tests/test_interface.cpp \
 	tests/test_log.cpp \
-	tests/test_traits.cpp \
 	tests/test_socket.cpp \
+
+#	tests/test_traits.cpp \
 
 TESTS_LIBS = \
 	boost_unit_test_framework \

@@ -2,7 +2,8 @@
 #define SSERVER_FD_H_INCLUDED
 
 #include "exception.h"
-#include "traits.h"
+//TODO: now it's overkill
+// #include "traits.h"
 #include <boost/utility.hpp>
 #include <boost/optional.hpp>
 #include <unistd.h>
@@ -30,14 +31,38 @@ public:
         return fd;
     }
 
-    template<typename T>
-    size_t write(const std::string& data,
-                 size_t offset = 0,
-                 typename IsByteArray<T>::type* = 0) {
-        return offset;
+    // int result = 0;
+    // for(int done = 0; done < size; done += result) {
+    //     CHECK_NONBLOCK_CALL((result = ::write(fd_, data + done, size - done)), "write");
+    //     if(result == -1) return done;
+    // }
+    int write(const char* data, size_t size) {
+        return io(&::write, data, size);
     }
 
+    int read(char* buf, size_t size) {
+        return io(&::read, buf, size);
+    }
+
+    // template<typename T>
+    // size_t write(const std::string& data,
+    //              size_t offset = 0,
+    //              typename IsByteArray<T>::type* = 0) {
+    //     return offset;
+    // }
+
 private:
+    template<typename Op, typename Data>
+    int io(Op operation, Data data, size_t size) {
+        int result = 0;
+        for(size_t done = 0; done < size; done += result) {
+            result = operation(fd_, data + done, size - done);
+            if(result == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+                return done;
+            CHECK_CALL(result, "io(" << fd_ << ")");
+        }
+        return size;        
+    }
 
     void set_flag(long flag) {
         int flags = 0;
@@ -61,13 +86,13 @@ public:
         write_.reset(fds[1]);
     }
 
-  // bool write(const std::string& /*data*/) {
-  //   return false;
-  // }
+    int write(const char* data, size_t size) {
+        return write_.write(data, size);
+    }
 
-  // boost::optional<std::string> read() {
-  //   return boost::none;
-  // }
+    int read(char* buf, size_t size) {
+        return read_.read(buf, size);
+    }
 
 private:
     FD read_;

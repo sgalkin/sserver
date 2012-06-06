@@ -1,6 +1,6 @@
 #ifndef SSERVER_TRAITS_H_INCLUDED
 #define SSERVER_TRAITS_H_INCLUDED
-
+#warning OVERKILL
 #include <vector>
 #include <string>
 

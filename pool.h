@@ -1,74 +1,88 @@
 #ifndef SSERVER_POOL_H_INCLUDED
 #define SSERVER_POOL_H_INCLUDED
 
+#include "fd.h"
+#include "log.h"
 #include <boost/thread/thread.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
+#include <queue>
 
 template<typename Task, typename Handler>
 class Pool {
-  typedef std::queue<Task> Tasks;
+    typedef std::queue<Task> Tasks;
 
 public:
-  Pool() {
-    create_threads(std::max(boost::thread::hardware_concurency(), 4));
-  }
-
-  explicit Pool(int thread_num) {
-    create_threads(thread_num);
-  }
-
-  ~Pool() {
-    pool_.join_all();
-  }
-
-  void add_task(const Task& task) {
-    {
-      boost::scoped_lock lock(queue_mutex_);
-      queue_.push_back(task);
+    Pool() {
+        create_threads(std::max(boost::thread::hardware_concurrency(), 4u));
     }
-    queue_condition_.notify_one();
-  }
+
+    explicit Pool(int thread_num) {
+        create_threads(thread_num);
+    }
+
+    ~Pool() {
+        // TODO: notify all
+        // TODO: set stop flag
+        pool_.join_all();
+    }
+
+    void join() {
+        // TODO: implement it
+    }
+
+    void add_task(const Task& task) {
+        {
+            boost::mutex::scoped_lock lock(queue_mutex_);
+            queue_.push(task);
+        }
+        // TODO: notify random it does not matter who get the job
+    }
 
 private:
-  void create_threads(int thread_num) {
-    for(int i = 0; i < ; ++i) {
-      pool_.create_thread(boost::bind(&Pool::work, this));
+    void create_threads(int thread_num) {
+        DEBUG("Creating thread pool with " << thread_num << " threads");
+        for(int i = 0; i < thread_num; ++i) {
+            pipes_.push_back(new Pipe);
+            pool_.create_thread(
+                boost::bind(&Pool::work, this, boost::ref(pipes_.back())));
+        }
     }
-  }
 
-  void work() {
-    while(true) {
-      Handler handler;
-      // TODO: get rid of busy loop when !handler.empty()
-      while(true) {
-	{
-	  boost::scoped_lock lock(queue_mutex_);
-	  while(queue_.empty() && handler.empty()) {
-	    queue_condition_.wait(queue_mutex_);
-	  }
-	  if(!queue_.empty()) {
-	    handler.add(queue.front());
-	    queue.pop_front();
-	  }
-	}
-	try {
-	  handler.perform();
-	} catch(std::runtime_error& ex) {
-	  // ERROR
-	  break;
-	} catch(...) {
-	  // ERROR
-	  break;
-	}
-      }
-      // ERROR
+    void work(Pipe& pipe) {
+        DEBUG("Starting working thread: " << boost::this_thread::get_id());
+        while(true) {
+            Handler handler;
+            while(true) {
+                {
+                    boost::mutex::scoped_lock lock(queue_mutex_);
+                    if(!queue_.empty()) {
+                        handler.add(queue_.front());
+                        queue_.pop();
+                    }
+                }
+                try {
+                    handler.perform(pipe);
+                    // TODO check stop flag
+                } catch(std::runtime_error& ex) {
+                    ERROR("Error in working thread: "
+                          << boost::this_thread::get_id() << " "
+                          << ex.what());
+                    break;
+                } catch(...) {
+                    ERROR("Unexpected error in working thread: "
+                          << boost::this_thread::get_id());
+                    break;
+                }
+            }
+            DEBUG("Restarging handler in thread: " << boost::this_thread::get_id());
+        }
     }
-  }
 
-  boost::thread_group pool_;
+    boost::thread_group pool_;
+    boost::ptr_vector<Pipe> pipes_;
 
-  boost::mutex queue_mutex_;
-  boost::mutex queue_condition_;
-  Tasks queue_;
+    boost::mutex queue_mutex_;
+    Tasks queue_;
 };
 
-#define // SSERVER_POOL_H_INCLUDED
+#endif // SSERVER_POOL_H_INCLUDED
