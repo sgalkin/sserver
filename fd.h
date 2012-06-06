@@ -7,63 +7,52 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-class FD;
-
-void swap(FD& lhs, FD& rhs);
-
 class FD : boost::noncopyable {
     friend void swap(FD&, FD&);
 
 public:
-  explicit FD(int fd = -1) : fd_(fd) {}
+    FD() : fd_(-1) {}
+    explicit FD(int fd, bool blocking = true) : fd_(fd) {
+        REQUIRE(fd_ != -1, "Invalid file descriptor");
+        if(blocking) set_flag(O_NONBLOCK);
+    }
 
-  ~FD() {
-    close(fd_);
-  }
+    ~FD() { close(fd_); }
     
-  int get() const {
-    return fd_;
-  }
-  
-  void reset(int fd = -1) { 
-      FD tmp(fd);
-      swap(*this, tmp);
-  }
+    int get() const { return fd_; }
+    operator int() const { return get(); }
+    void reset() { FD().swap(*this); }
+    void reset(int fd, bool blocking = true) { FD(fd, blocking).swap(*this); }
+    void swap(FD& fd) { std::swap(fd_, fd.fd_); }
 
-  int release() {
-    int fd = fd_;
-    fd_ = -1;
-    return fd;
-  }
-
-  operator int() const {
-    return get();
-  }
-
-  void set_nonblock() {
-    int flags = 0;
-    CHECK_CALL((flags = fcntl(fd_, F_GETFL, 0)), "fcntl/GETFL(" << fd_ << ")");
-    CHECK_CALL(fcntl(fd_, F_SETFL, (flags | O_NONBLOCK)), "fcntl/SETFL(" << fd_ << ")");
-  }
+    int release() {
+        int fd = fd_;
+        fd_ = -1;
+        return fd;
+    }
 
 private:
-  int fd_;
+    void set_flag(long flag) {
+        int flags = 0;
+        CHECK_CALL((flags = fcntl(fd_, F_GETFL, 0)), "fcntl/GETFL(" << fd_ << ")");
+        CHECK_CALL(fcntl(fd_, F_SETFL, (flags | flag)), "fcntl/SETFL(" << fd_ << ")");
+    }
+
+    int fd_;
 };
 
 inline void swap(FD& lhs, FD& rhs) {
-    std::swap(lhs.fd_, rhs.fd_);
+    lhs.swap(rhs);
 }
 
 class Pipe {
 public:
-  Pipe() {
-    int fds[2];
-    CHECK_CALL(pipe(fds), "pipe");
-    read_.reset(fds[0]);
-    write_.reset(fds[1]);
-    read_.set_nonblock();
-    write_.set_nonblock();
-  }
+    Pipe() {
+        int fds[2];
+        CHECK_CALL(pipe(fds), "pipe");
+        read_.reset(fds[0]);
+        write_.reset(fds[1]);
+    }
 
   // bool write(const std::string& /*data*/) {
   //   return false;
@@ -74,8 +63,8 @@ public:
   // }
 
 private:
-  FD read_;
-  FD write_;
+    FD read_;
+    FD write_;
 };
 
 #endif //SSERVER_FD_H_INCLUDED

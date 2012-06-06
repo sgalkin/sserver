@@ -63,29 +63,24 @@ void enable(int socket, int level, int option) {
 
 }
 
-Socket::Socket(int type, const std::string& host, unsigned short port) :
-    socket_(-1) 
+Socket::Socket(int type, const std::string& host, unsigned short port)
 {
-    DEBUG("Creating " << socket_type(type) << " socket: " << host << ":" << port);
-    Address address(type, host, boost::lexical_cast<std::string>(port));
-    const struct addrinfo* info = address;
-    int socket;
-    CHECK_CALL((socket = ::socket(info->ai_family, info->ai_socktype, info->ai_protocol)),
-               "socket (" << socket_type(type) << "): " << host << ":" << port);
-    socket_.reset(socket);
-    DEBUG("Created " << socket_type(type) << " socket(" << socket_ << "): "
-          << socket_name(info->ai_addr, info->ai_addrlen));
+  DEBUG("Creating " << socket_type(type) << " socket: " << host << ":" << port);
+  Address address(type, host, boost::lexical_cast<std::string>(port));
+  const struct addrinfo* info = address;
+  socket_.reset(::socket(info->ai_family, info->ai_socktype, info->ai_protocol));
+  DEBUG("Created " << socket_type(type) << " socket(" << socket_ << "): "
+        << socket_name(info->ai_addr, info->ai_addrlen));
 
-    enable(socket_, SOL_SOCKET, SO_REUSEADDR);
-    enable(socket_, SOL_SOCKET, SO_KEEPALIVE);
-    socket_.set_nonblock();
+  enable(socket_, SOL_SOCKET, SO_REUSEADDR);
+  enable(socket_, SOL_SOCKET, SO_KEEPALIVE);
 
-    CHECK_CALL(bind(socket_, info->ai_addr, info->ai_addrlen), "bind(" << socket_ << ")");
-
-    if(info->ai_next) {
-        WARN(host << ":" << port << " has other address info (one of them): "
-             << socket_name(info->ai_next->ai_addr, info->ai_next->ai_addrlen));
-    }
+  CHECK_CALL(bind(socket_, info->ai_addr, info->ai_addrlen), "bind(" << socket_ << ")");
+  
+  if(info->ai_next) {
+      WARN(host << ":" << port << " has other address info (one of them): "
+           << socket_name(info->ai_next->ai_addr, info->ai_next->ai_addrlen));
+  }
 }
 
 Peer Socket::accept() const {
@@ -116,10 +111,7 @@ TCPSocket::TCPSocket(const std::string& host, unsigned short port) :
 }
 
 int TCPSocket::peer(struct sockaddr* addr, socklen_t* size) const {
-    int peer;
-    CHECK_CALL((peer = ::accept(socket(), addr, size)), "accept(" << socket() << ")");
+    FD peer(::accept(socket(), addr, size));
     enable(peer, SOL_SOCKET, SO_KEEPALIVE);
-    FD fd(peer);
-    fd.set_nonblock();
-    return fd.release();
+    return peer.release();
 }
