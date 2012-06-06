@@ -2,14 +2,13 @@
 #define SSERVER_FD_H_INCLUDED
 
 #include "exception.h"
+#include "traits.h"
 #include <boost/utility.hpp>
 #include <boost/optional.hpp>
 #include <unistd.h>
 #include <fcntl.h>
 
 class FD : boost::noncopyable {
-    friend void swap(FD&, FD&);
-
 public:
     FD() : fd_(-1) {}
     explicit FD(int fd, bool blocking = true) : fd_(fd) {
@@ -31,7 +30,15 @@ public:
         return fd;
     }
 
+    template<typename T>
+    size_t write(const std::string& data,
+                 size_t offset = 0,
+                 typename IsByteArray<T>::type* = 0) {
+        return offset;
+    }
+
 private:
+
     void set_flag(long flag) {
         int flags = 0;
         CHECK_CALL((flags = fcntl(fd_, F_GETFL, 0)), "fcntl/GETFL(" << fd_ << ")");
