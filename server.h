@@ -14,11 +14,11 @@ public:
     explicit Server(const boost::program_options::variables_map& config);
     ~Server();
 
-    void process();      
+    void process();
 
 private:
     Sockets sockets_;
-    Pool pool_;
+//    Pool pool_;
 };
 
 #endif // SSERVER_SERVER_H_INCLUDED

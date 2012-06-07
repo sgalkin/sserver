@@ -1,45 +1,44 @@
 #ifndef SSERVER_LOG_H_INCLUDED
 #define SSERVER_LOG_H_INCLUDED
 
+#include "fd.h"
 #include "exception.h"
 #include <string>
 #include <sstream>
 #include <boost/utility.hpp>
+#include <limits.h>
+#include <stdio.h>
 
-#include <iostream>
+inline std::string exe_path() {
+    char buf[PATH_MAX];
+    snprintf(buf, sizeof(buf), "/proc/%d/cmdline", getpid());
+    FD(open(buf, O_RDONLY)).read(buf, sizeof(buf));
+    std::string path(buf);
+    return path.substr(path.rfind('/') + 1);
+}
 
 class Logger : boost::noncopyable {
 public:
     enum Level { DEBUG = 0, WARN, ERROR, FATAL };
 
-    ~Logger() { close_log_fd(); }
-
     void write(Level level, const std::string& message);
     void set_level(Level level) { level_ = level; }
-    void set_log(int log_fd) { close_log_fd(); log_fd_ = log_fd; }
+    void set_log(int fd) { log_.reset(fd); }
     Level level() const { return level_; }
 
     static Logger& instance() {
-        // TODO: detemine process name
-        static Logger logger_("aaa");
+        static Logger logger_(exe_path());
         return logger_;
     }
 
 private:
     explicit Logger(const std::string& prefix) :
-        prefix_(prefix), level_(ERROR), log_fd_(-1) {
-    }
-
-    void close_log_fd() {
-        if(log_fd_ != -1) {
-            close(log_fd_);
-            log_fd_ = -1;
-        }
+        prefix_(prefix), level_(ERROR) {
     }
 
     std::string prefix_;
     Level level_;
-    int log_fd_;
+    FD log_;
 };
 
 

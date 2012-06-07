@@ -2,6 +2,7 @@
 #include "helpers.h"
 #include "../fd.h"
 #include <algorithm>
+#include <stdio.h>
 
 BOOST_AUTO_TEST_CASE(test_construct_empty) {
     int c = count_descriptors();
@@ -117,6 +118,14 @@ BOOST_AUTO_TEST_CASE(test_read_block) {
     BOOST_REQUIRE(write(w.get(), data, sizeof(data)) != -1);
     BOOST_CHECK(r.read(data, sizeof(data)) != sizeof(data));
     BOOST_CHECK(r.read(data, sizeof(data)) == 0);
+}
+
+BOOST_AUTO_TEST_CASE(test_read_eof) {
+    char buf[PATH_MAX];
+    snprintf(buf, sizeof(buf), "/proc/%d/cmdline", getpid());
+    BOOST_CHECK(FD(open(buf, O_RDONLY)).read(buf, sizeof(buf)) != -1);
+    std::string path(buf);
+    BOOST_CHECK_EQUAL(path.substr(path.rfind("/") + 1), "test_fd");
 }
 
 // Lambdas are only in gcc 4.6 :(

@@ -57,7 +57,7 @@ private:
         int result = 0;
         for(size_t done = 0; done < size; done += result) {
             result = operation(fd_, data + done, size - done);
-            if(result == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+            if(result == 0 || (result == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)))
                 return done;
             CHECK_CALL(result, "io(" << fd_ << ")");
         }
@@ -93,6 +93,9 @@ public:
     int read(char* buf, size_t size) {
         return read_.read(buf, size);
     }
+
+    const FD& writer() { return write_; }
+    const FD& reader() { return read_; }
 
 private:
     FD read_;

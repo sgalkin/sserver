@@ -5,37 +5,50 @@
 #include "log.h"
 #include <boost/thread/thread.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
+#include <algorithm>
 #include <queue>
+
+static const unsigned MIN_THREADS = 4;
+
+inline void notify(Pipe& pipe) {
+    REQUIRE(pipe.write("*", 1) == 1, "couldn't notify thread");
+}
+
+template<typename Task>
+class Handler {
+public: 
+    virtual ~Handler() {};
+
+    virtual void add_task(Task task) = 0;
+    virtual void perform(Pipe& notification) = 0;
+};
 
 template<typename Task, typename Handler>
 class Pool {
     typedef std::queue<Task> Tasks;
 
 public:
-    Pool() {
-        create_threads(std::max(boost::thread::hardware_concurrency(), 4u));
+    Pool() : running_(true) {
+        create_threads(std::max(boost::thread::hardware_concurrency(), MIN_THREADS));
     }
 
-    explicit Pool(int thread_num) {
+    explicit Pool(int thread_num) : running_(true) {
         create_threads(thread_num);
     }
 
     ~Pool() {
-        // TODO: notify all
-        // TODO: set stop flag
+        running_ = false; // is race posible?
+        std::for_each(pipes_.begin(), pipes_.end(), &notify);
         pool_.join_all();
     }
 
-    void join() {
-        // TODO: implement it
-    }
-
     void add_task(const Task& task) {
+        static unsigned thread_id = 0;
         {
             boost::mutex::scoped_lock lock(queue_mutex_);
             queue_.push(task);
         }
-        // TODO: notify random it does not matter who get the job
+        notify(pipes_[thread_id++ % pipes_.size()]); // called from only thread
     }
 
 private:
@@ -49,33 +62,30 @@ private:
     }
 
     void work(Pipe& pipe) {
-        DEBUG("Starting working thread: " << boost::this_thread::get_id());
-        while(true) {
+        DEBUG("Working thread started");
+        do {
             Handler handler;
-            while(true) {
+            do {
                 {
                     boost::mutex::scoped_lock lock(queue_mutex_);
                     if(!queue_.empty()) {
-                        handler.add(queue_.front());
+                        handler.add_task(queue_.front());
                         queue_.pop();
                     }
                 }
                 try {
                     handler.perform(pipe);
-                    // TODO check stop flag
                 } catch(std::runtime_error& ex) {
-                    ERROR("Error in working thread: "
-                          << boost::this_thread::get_id() << " "
-                          << ex.what());
+                    ERROR("Error in working thread `" 
+                          << ex.what() << "' restarting handler...");
                     break;
                 } catch(...) {
-                    ERROR("Unexpected error in working thread: "
-                          << boost::this_thread::get_id());
+                    ERROR("Unexpected error in working thread restarting handler... ");
                     break;
                 }
-            }
-            DEBUG("Restarging handler in thread: " << boost::this_thread::get_id());
-        }
+            } while(running_);
+        } while(running_);
+        DEBUG("Working thread stopped");
     }
 
     boost::thread_group pool_;
@@ -83,6 +93,7 @@ private:
 
     boost::mutex queue_mutex_;
     Tasks queue_;
+    bool running_;
 };
 
 #endif // SSERVER_POOL_H_INCLUDED
