@@ -44,10 +44,10 @@ BOOST_AUTO_TEST_CASE( test_pool ) {
         for(size_t i = 0; i < 2 * size; ++i) {
             p.add_task(i);
         }
-        sleep(2); // TODO: stop pool gently
+        sleep(3); // TODO: stop pool gently
     }
     BOOST_CHECK_EQUAL(Sleeper::threads_count(), size);
     BOOST_CHECK_EQUAL(Sleeper::tasks_count(), 2 * size);
     // TODO: make test more accurate
-    BOOST_CHECK(time(0) - start < 4);
+    BOOST_CHECK(time(0) - start < 5);
 }

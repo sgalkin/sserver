@@ -82,24 +82,26 @@ public:
     Pipe() {
         int fds[2];
         CHECK_CALL(pipe(fds), "pipe");
-        read_.reset(fds[0]);
-        write_.reset(fds[1]);
+        reader_.reset(fds[0]);
+        writer_.reset(fds[1]);
     }
 
     int write(const char* data, size_t size) {
-        return write_.write(data, size);
+        return writer_.write(data, size);
     }
 
     int read(char* buf, size_t size) {
-        return read_.read(buf, size);
+        return reader_.read(buf, size);
     }
 
-    const FD& writer() { return write_; }
-    const FD& reader() { return read_; }
+    const FD& writer() const { return writer_; }
+    const FD& reader() const { return reader_; }
+    FD& writer() { return writer_; }
+    FD& reader() { return reader_; }
 
 private:
-    FD read_;
-    FD write_;
+    FD reader_;
+    FD writer_;
 };
 
 #endif //SSERVER_FD_H_INCLUDED

@@ -18,7 +18,7 @@ public:
 
 private:
     Sockets sockets_;
-//    Pool pool_;
+//     Pool pool_;
 };
 
 #endif // SSERVER_SERVER_H_INCLUDED

@@ -2,12 +2,18 @@
 #include "../log.h"
 
 struct Data {
-    Data() { std::cerr << "Init" << std::endl; }
-    ~Data() { std::cerr << "Destroy" << std::endl; }
-    operator std::string() { return "AAAA"; }
+    Data() { ++count; }
+    std::string str() const { return ""; }
+    static int count;
 };
 
+int Data::count = 0;
+
 BOOST_AUTO_TEST_CASE(test_log_types) {
+    DEBUG("test");
+    WARN("test");
+    ERROR("test");
+    FATAL("test");
     BOOST_CHECK(false);
 }
 
@@ -24,11 +30,11 @@ BOOST_AUTO_TEST_CASE(test_log_pid) {
 }
 
 BOOST_AUTO_TEST_CASE(test_log_data_init) {
-    std::cerr << "AAA" << std::endl;
-    DEBUG("daaa" << std::string(Data()));
-    std::cerr << "BBB" << std::endl;
-    FATAL("12" << std::string(Data()));
-    BOOST_CHECK(false);
+    BOOST_REQUIRE_EQUAL(Data::count, 0);
+    DEBUG("debug" << Data().str());
+    BOOST_CHECK_EQUAL(Data::count, 0);
+    FATAL("fatal" << Data().str());
+    BOOST_CHECK_EQUAL(Data::count, 1);
 }
 
 // TODO: test_log_fd

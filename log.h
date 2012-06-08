@@ -13,8 +13,7 @@ inline std::string exe_path() {
     char buf[PATH_MAX];
     snprintf(buf, sizeof(buf), "/proc/%d/cmdline", getpid());
     FD(open(buf, O_RDONLY)).read(buf, sizeof(buf));
-    std::string path(buf);
-    return path.substr(path.rfind('/') + 1);
+    return buf;
 }
 
 class Logger : boost::noncopyable {
@@ -32,9 +31,9 @@ public:
     }
 
 private:
-    explicit Logger(const std::string& prefix) :
-        prefix_(prefix), level_(ERROR) {
-    }
+    explicit Logger(const std::string& exe) :
+        prefix_(exe.substr(exe.rfind('/') + 1)),
+        level_(ERROR) {}
 
     std::string prefix_;
     Level level_;

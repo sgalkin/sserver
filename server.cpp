@@ -47,7 +47,7 @@ void Server::process() {
                     socklen_t len = sizeof(err);
                     CHECK_CALL(getsockopt(fd.fd, SOL_SOCKET, SO_ERROR, &err, &len),
                                "getsockopt(" << fd.fd << ")");
-		    char dummy;
+                    char dummy;
                     THROW(strerror_r(err, &dummy, sizeof(dummy)));
                 }
                 if((fd.revents & POLLHUP) == POLLHUP) {

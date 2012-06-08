@@ -23,11 +23,7 @@ void Logger::write(Level level, const std::string& message) {
       << message << std::endl;
 
     if(log_ != -1) {
-        log_.write(s.str().c_str(), s.str().size());
-        ::fsync(log_);
+        while(log_.write(s.str().c_str(), s.str().size()) == -1);
     }
-    if(isatty(2) == 1) {
-        ::write(2, s.str().c_str(), s.str().size());
-        ::fsync(2);
-    }
+    if(isatty(2) == 1) { ::write(2, s.str().c_str(), s.str().size()); }
 }
