@@ -2,97 +2,123 @@
 #define SSERVER_MESSAGE_H_INCLUDED
 
 #include "fd.h"
+#include "socket.h"
 #include "log.h"
+#include "exception.h"
+#include "erase_iterator.h"
 #include <boost/function.hpp>
 #include <boost/foreach.hpp>
+#include <boost/iterator.hpp>
+//#include <boost/scoped_ptr.hpp>
 #include <map>
+#include <list>
 #include <poll.h>
 #include <sys/socket.h>
 
 class MessageBase {
 public:
-//    explicit MessageBase() //: fd_(fd) {}
     virtual ~MessageBase() {}
     
     virtual bool is_done() const = 0;
     virtual bool is_ready() const = 0;
     virtual bool is_eof() const = 0;
     virtual bool is_fail() const = 0;
-    virtual void throw_error() const = 0;
+//    virtual void throw_error() const = 0;
 
-//    int fd() const { return fd_; }
+    void read() { DEBUG("read"); do_try(&MessageBase::do_read); }
+    void write() { DEBUG("write"); do_try(&MessageBase::do_write); } 
+    void hangup() { DEBUG("hangup"); do_hangup(); }
+    void error() { DEBUG("error"); do_error(); }
+    void pass() {}
 
-    void read(int fd) { DEBUG("read"); do_try(fd, &MessageBase::do_read); }
-    void write(int fd) { DEBUG("write"); do_try(fd, &MessageBase::do_write); } 
-    void hangup(int fd) { DEBUG("hangup"); do_hangup(fd); }
-    void error(int fd) { DEBUG("error"); do_error(fd); }
-    void pass(int) {}
+    virtual int fd() const = 0;
     
 private:
-    void do_try(int fd, void (MessageBase::*op)(int)) {
+    void do_try(void (MessageBase::*op)()) {
         try {
-            (this->*op)(fd); 
+            (this->*op)();
         } catch(std::runtime_error& ex) {
             do_error(ex.what());
         }
     }
 
-    virtual void do_read(int fd) = 0;
-    virtual void do_write(int fd) = 0;
-    virtual void do_hangup(int fd) = 0;
-    virtual void do_error(int fd) = 0;
+    virtual void do_read() = 0;
+    virtual void do_write() = 0;
+    virtual void do_hangup() = 0;
+    virtual void do_error() = 0;
     virtual void do_error(const std::string& error) = 0;
-
-//    int fd_;
 };
 
+template<typename T>
 struct NOP2 {
     typedef void* type;
     enum { Event = 0 };
 
     explicit NOP2(void *) {}
-    bool perform(int) { return true; }
+    bool perform(T*) { return true; }
     const type& data() const {
         static const type data = 0;
         return data;
     }
 };
 
+template<typename T>
 struct NOP {
     typedef void* type;
-    static bool perform(int, void**) { return true; }
+    static bool perform(T*, type&) { return true; }
 };
 
-#include <netdb.h>
+class Accept {
+public:
+    typedef TCPSocket* type;
+    enum { Event = POLLIN };
 
-struct Accept {
-    typedef int type;
-    static bool perform(int fd, int& result) {
-        struct sockaddr_in sockaddr;
-        socklen_t len = sizeof(sockaddr);
-        CHECK_CALL((result = accept(fd, (struct sockaddr*)&sockaddr, &len)), "accept");
-// TODO: remove it
-        char host[NI_MAXHOST];
-        char port[NI_MAXSERV];
-        CHECK_CALL_ERROR(getnameinfo((struct sockaddr*)&sockaddr, len,
-                                     host, sizeof(host), port, sizeof(port),
-                                     NI_NUMERICHOST | NI_NUMERICSERV),
-                         "getnameinfo", gai_strerror);
-        DEBUG("accept connection from: " << host << ":" << port);
-        FD(result).release();
-// TODO: set socket options
+    bool perform(TCPSocket* socket) {
+        peer_.reset(new TCPSocket(socket->accept()));
+        return true;
+    }
+
+    type data() {
+        return peer_.release();
+    }
+
+private:
+    std::auto_ptr<TCPSocket> peer_; // TODO: think here a little
+};
+
+template<typename T> struct Receive;
+
+template<> 
+struct Receive<UDPSocket> {
+    typedef UDPMessage type;
+    static bool perform(UDPSocket* socket, UDPMessage& message) {
+        message = socket->read();
         return true;
     }
 };
 
-template<typename Perform>
+template<> 
+struct Receive<TCPSocket> {
+    typedef std::string type;
+    static bool perform(TCPSocket* socket, std::string& message) {
+        message = socket->read();
+        // TODO: handle slow clients with TCP_NODELAY
+        DEBUG(socket->get() << " READ: " << message);
+        return true;
+        // return (message.size() > 1 &&
+        //         message[message.size() - 1] = '\n' &&
+        //         message[message.size() - 2] = '\r');
+    }
+};
+
+template<typename T, typename Perform>
 class Reader {
 public:
     typedef typename Perform::type type;
     enum { Event = POLLIN };
 
-    bool perform(int fd) { return Perform::perform(fd, data_); }
-    const type& data() const { return data_; }
+    bool perform(T* fd) { return Perform::perform(fd, data_); }
+    type data() const { return data_; }
 
 private:
     type data_;
@@ -117,10 +143,10 @@ struct DecodeError {
     }
 };
 
-template<typename DecodeError = DecodeError>
+template<typename T, typename DecodeError = DecodeError>
 class Error {
 public:
-    void perform(int fd) { error_ = DecodeError::decode(fd); }
+    void perform(T* fd) { error_ = DecodeError::decode(fd->get()); }
     void perform(const std::string& error) { error_ = error; }
     operator const std::string& () const { return error_; }
     void throw_error() const { if(!error_.empty()) THROW(error_); }
@@ -128,39 +154,52 @@ private:
     std::string error_;
 };
 
+template<typename T>
 class Hangup {
 public:
     Hangup() : eof_(false) {}
-    void perform(int fd) { eof_ = true; }
+    void perform(T*) { eof_ = true; }
     operator bool() const { return eof_; }
 
 private:
     bool eof_;
 };
 
-template<typename Read = Reader<NOP>,
-         typename Write = NOP2,
-         typename Hangup = Hangup,
-         typename Error = Error<DecodeError> >
+
+template<typename FDType,
+         typename Read = Reader<FDType, NOP<FDType> >,
+         typename Write = NOP2<FDType>,
+         typename Hangup = Hangup<FDType>,
+         typename Error = Error<FDType,DecodeError>,
+         bool Finite = false>
 class Message : public MessageBase {
 public:
     enum { Event = Read::Event | Write::Event };
 
-    Message(const typename Write::type& data = typename Write::type()) : writer_(data) {}
-    const typename Read::type& data() const { return reader_.data(); }
+    Message(FDType* fd,
+            const typename Write::type& data = typename Write::type()) :
+        fd_(fd), writer_(data) {}
 
-    bool is_done() const { return is_eof() || is_fail(); }
-    bool is_ready() const { return is_eof() || is_fail() || ready_; }
+    // in C++11 move data from reader
+    // getting data from reader may not be constant
+    typename Read::type data() { return reader_.data(); }
+
+    bool is_done() const { return Finite && is_ready(); }
+    bool is_ready() const { return ready_ || is_eof() || is_fail(); }
     bool is_eof() const { return hangup_; }
     bool is_fail() const { return !std::string(error_).empty(); }
     void throw_error() const { error_.throw_error(); }
 
+    int fd() const { return fd_->get(); }
+
 private:
-    void do_read(int fd) { ready_ = reader_.perform(fd); }
-    void do_write(int fd) { ready_ = writer_.perform(fd); }
-    void do_hangup(int fd) { hangup_.perform(fd); }
-    void do_error(int fd) { error_.perform(fd); }
+    void do_read() { ready_ = reader_.perform(fd_); }
+    void do_write() { ready_ = writer_.perform(fd_); }
+    void do_hangup() { hangup_.perform(fd_); }
+    void do_error() { error_.perform(fd_); }
     void do_error(const std::string& error) { error_.perform(error); }
+
+    FDType* fd_;
 
     Read reader_;
     Write writer_;
@@ -171,10 +210,10 @@ private:
 };
 
 template<typename M>
-const struct pollfd make_pollfd(int fd, const M&) {
+const struct pollfd make_pollfd(const M& msg) {
     struct pollfd pollfd;
     memset(&pollfd, 0, sizeof(pollfd));
-    pollfd.fd = fd;
+    pollfd.fd = msg.fd();
     pollfd.events = M::Event;
     return pollfd;
 }
@@ -193,8 +232,8 @@ const struct pollfd make_pollfd(int fd, const M&) {
 // class ResponseMessage :  public SocketMessage {};
 
 
-typedef std::map< int, boost::function<void(MessageBase*,int)> > Handler2;
-Handler2 handlers() {
+typedef std::map< int, boost::function<void(MessageBase*)> > Handler2;
+inline Handler2 handlers() {
     Handler2 handler;
     handler.insert(std::make_pair(POLLIN, &MessageBase::read));
     handler.insert(std::make_pair(POLLOUT, &MessageBase::write));
@@ -205,23 +244,31 @@ Handler2 handlers() {
 }
 
 class Poller {
+    typedef std::list<int> Ready;
     typedef std::map<int, MessageBase*> Queue;
     typedef std::vector<struct pollfd> Poll;
 
 public:
+    typedef erase_iterator<Ready> iterator;
+    typedef void const_iterator; // for BOOST_FOREACH compatibility
+
     template<typename M>
-    void add(int fd, M& msg) {
-        REQUIRE(queue_.insert(std::make_pair(fd, &msg)).second,
-                "Too many message for one fd(" << fd << ")");
-        poll_.push_back(make_pollfd(fd, msg));
+    void add(M& msg) {
+        REQUIRE(queue_.insert(std::make_pair(msg.fd(), &msg)).second,
+                "Too many message for one fd(" << msg.fd() << ")");
+        poll_.push_back(make_pollfd(msg));
     }
 
-    int get() {
-        if(ready_.empty()) return -1;
-        int fd = ready_.front();
-        ready_.pop_front();
-        if(queue_.at(fd)->is_done()) queue_.erase(fd);
-        return fd;
+    // TODO: how to erase done tasks?
+    iterator begin() { return iterator(ready_); }
+    iterator end() { return iterator();  } 
+
+    // int get() {
+    //     if(ready_.empty()) return -1;
+    //     int fd = ready_.front();
+    //     ready_.pop();
+    //     if(queue_.at(fd)->is_done()) queue_.erase(fd);
+    //     return fd;
             
         // TODO: may by done list would be better
         // for(Queue::iterator it = queue_.begin(); it != queue_.end(); ++it) {
@@ -232,7 +279,7 @@ public:
         //     }
         // }
         // return -1;
-    }
+//    }
 
     void perform() {
         while(!(poll_.empty() || poll()));
@@ -240,16 +287,21 @@ public:
 
 private:
     bool poll() {
-        CHECK_CALL(::poll(&poll_[0], poll_.size(), -1), "poll");
-        for(Poll::iterator it = poll_.begin(); it != poll_.end(); ) {
+        int ready = 0;
+        CHECK_CALL((ready = ::poll(&poll_[0], poll_.size(), -1)), "poll");
+        for(Poll::iterator it = poll_.begin(); it != poll_.end() && ready > 0; ) {
             MessageBase* msg = queue_.at(it->fd);
-            DEBUG("fd(" << it->fd << ") " << it->revents);
-            handler_.at(it->revents & POLLIN)(msg, it->fd);
-            handler_.at(it->revents & POLLOUT)(msg, it->fd);
-            handler_.at(it->revents & POLLERR)(msg, it->fd);
-            handler_.at(it->revents & POLLHUP)(msg, it->fd);
+            if(it->revents == 0) {
+                ++it;
+                continue;
+            }
+            --ready;
+            handler_.at(it->revents & POLLERR)(msg);
+            handler_.at(it->revents & POLLHUP)(msg);
+            handler_.at(it->revents & POLLIN)(msg);
+            handler_.at(it->revents & POLLOUT)(msg);
             it->revents = 0;
-            ready_.push_back(it->fd);
+            if(msg->is_ready()) ready_.push_back(it->fd);
             if(msg->is_done()) {
                 it = poll_.erase(it);
             } else {
@@ -262,7 +314,7 @@ private:
     static const Handler2 handler_;
     Queue queue_;
     Poll poll_;
-    std::list<int> ready_;
+    Ready ready_;
 };
 
 const Handler2 Poller::handler_ = handlers();

@@ -43,54 +43,93 @@ struct SocketHelper;
 template<>
 struct SocketHelper<UDPSocket> {
     enum { type = SOCK_DGRAM };
-    static int accept(int fd) { return recvfrom(fd, 0, 0, 0, 0, 0); }
-    static int connect(int fd, const struct sockaddr* serv, socklen_t size) { 
-        return sendto(fd, "hello", 6, 0, serv, size); 
-    }
+    static int touch(int fd) { return recv(fd, 0, 0, 0); }
+    // static int accept(int) { return 0; }
+    // static int connect(int, const struct sockaddr*, socklen_t) { return 0; }
+    // static int send(int fd,
+    //                 const struct sockaddr* addr, socklen_t len, 
+    //                 const std::string& data) {
+    //     return sendto(fd, data.c_str(), data.size(), 0, addr, len);
+    // }
+    // static std::string data(const UDPMessage& data) { return boost::get<0>(data); }
 };
 
 template<>
 struct SocketHelper<TCPSocket> {
     enum { type = SOCK_STREAM };
-    static int accept(int fd) { return ::accept(fd, 0, 0); }
-    static int connect(int fd, const struct sockaddr* serv, socklen_t size) {
-        return ::connect(fd, serv, size);
-    }
+    static int touch(int fd) { return accept(fd, 0, 0); }
+    // static int accept(int fd) { return ::accept(fd, 0, 0); }
+    // static int connect(int fd, const struct sockaddr* serv, socklen_t size) {
+    //     return ::connect(fd, serv, size);
+    // }
+    // static int send(int fd,
+    //                 const struct sockaddr*, socklen_t, 
+    //                 const std::string& data) {
+    //     return ::send(fd, data.c_str(), data.size(), 0);
+    // }
+    // static std::string data(const std::string& data) { return data; }
 };
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_socket_init, socket, Sockets) {
     socket s("*", 10000);
-    int res = SocketHelper<socket>::accept(s.socket());
+    int res = SocketHelper<socket>::touch(s.get());
     BOOST_CHECK(res == -1 && (errno == EWOULDBLOCK || errno == EAGAIN));
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(test_socket_accept, socket, Sockets) {
-    socket s("*", 10000);
-    BOOST_CHECK_THROW(s.accept(), std::runtime_error);
+BOOST_AUTO_TEST_CASE(test_socket_accept) {
+    TCPSocket ss("*", 10000);
+    BOOST_CHECK_THROW(ss.accept(), std::runtime_error);
 
-    int p = ::socket(AF_INET, SocketHelper<socket>::type, 0);
-    BOOST_REQUIRE(p != -1);
-    int flags = fcntl(p, F_GETFL, 0);
-    BOOST_REQUIRE(flags != -1);
-    BOOST_REQUIRE(fcntl(p, F_SETFL, flags | O_NONBLOCK) != -1);
+    FD cs(socket(AF_INET, SOCK_STREAM, 0));
 
     struct sockaddr_in server;
     socklen_t size = sizeof(server);
-    BOOST_REQUIRE(getsockname(s.socket(), (struct sockaddr*)&server, &size) != -1);
+    BOOST_REQUIRE(getsockname(ss.get(), (struct sockaddr*)&server, &size) != -1);
+    BOOST_REQUIRE_EQUAL(size, sizeof(server));
 
-    int cnt = SocketHelper<socket>::connect(p, (const struct sockaddr*)&server, size);
-    BOOST_REQUIRE(cnt != -1 || (cnt == -1 &&
+    int cnt = connect(cs.get(), (const struct sockaddr*)&server, size);
+    BOOST_REQUIRE(cnt != -1 ||
+                  (cnt == -1 &&
                    (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINPROGRESS)));
+    TCPSocket ps(ss.accept());
+    BOOST_CHECK(ps.get() != -1);
 
-    Peer peer = s.accept();
-
-    struct sockaddr_in client;
-    BOOST_REQUIRE(getsockname(p, (struct sockaddr*)&client, &size) != -1);
-    if(int(SocketHelper<socket>::type) == SOCK_DGRAM) { // client not bound
-        client.sin_addr.s_addr = peer.second.sin_addr.s_addr;
-    }
-    BOOST_CHECK(memcmp(&peer.second, &client, size) == 0);
-
-    int res = ::recv(peer.first, 0, 0, 0);
+    struct sockaddr_in client, peer;
+    BOOST_REQUIRE(getsockname(cs.get(), (struct sockaddr*)&client, &size) != -1);
+    BOOST_REQUIRE_EQUAL(size, sizeof(client));
+    BOOST_REQUIRE(getpeername(ps.get(), (struct sockaddr*)&peer, &size) != -1);
+    BOOST_REQUIRE_EQUAL(size, sizeof(peer));
+    BOOST_CHECK(memcmp(&peer, &client, size) == 0);
+    
+    int res = ::recv(ps.get(), 0, 0, 0);
     BOOST_CHECK(res != -1 || (res == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)));
+}
+
+BOOST_AUTO_TEST_CASE(test_udp_read) {
+    UDPSocket ss("*", 10000);
+    struct sockaddr_in server;
+    socklen_t size = sizeof(server);
+    BOOST_REQUIRE(getsockname(ss.get(), (struct sockaddr*)&server, &size) != -1);
+    BOOST_REQUIRE_EQUAL(size, sizeof(server));
+
+    FD cs(::socket(AF_INET, SOCK_DGRAM, 0));
+    BOOST_REQUIRE(sendto(cs.get(), "hello", 5, 0,
+                         (sockaddr*)&server, sizeof(sockaddr)) != -1);
+    std::string data = boost::get<0>(ss.read());
+    BOOST_CHECK_EQUAL(data, "hello");
+}
+
+BOOST_AUTO_TEST_CASE(test_tcp_read) {
+    TCPSocket ss("*", 10000);
+    struct sockaddr_in server;
+    socklen_t size = sizeof(server);
+    BOOST_REQUIRE(getsockname(ss.get(), (struct sockaddr*)&server, &size) != -1);
+    BOOST_REQUIRE_EQUAL(size, sizeof(server));
+
+    FD cs(::socket(AF_INET, SOCK_STREAM, 0));
+    connect(cs.get(), (sockaddr*)&server, sizeof(sockaddr));
+    TCPSocket ps = ss.accept();
+    BOOST_REQUIRE(send(cs.get(), "hello", 5, 0) != -1);
+    std::string data = ps.read();
+    BOOST_CHECK_EQUAL(data, "hello");
 }

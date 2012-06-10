@@ -1,24 +1,23 @@
 #ifndef SSERVER_SERVER_H_INCLUDED
 #define SSERVER_SERVER_H_INCLUDED
 
-#include "pool.h"
+#include "socket.h"
 #include <boost/program_options.hpp>
-#include <boost/ptr_container/ptr_map.hpp>
+#include <boost/scoped_ptr.hpp>
 
-class Socket;
+class TCPSocket;
+class UDPSocket;
 
 class Server {
 public:
-    typedef boost::ptr_map<int, Socket> Sockets;
-
     explicit Server(const boost::program_options::variables_map& config);
     ~Server();
 
     void process();
 
 private:
-    Sockets sockets_;
-//     Pool pool_;
+    boost::scoped_ptr<TCPSocket> tcp_;
+    boost::scoped_ptr<UDPSocket> udp_;
 };
 
 #endif // SSERVER_SERVER_H_INCLUDED

@@ -55,8 +55,7 @@ inline const char* asString(Logger::Level level) {
     return strings[level];
 }
 
-#define MESSAGE(lvl, message)                           \
-    do {                                                \
+#define MESSAGE(lvl, message) do {                      \
         if(Logger::instance().level() <= (lvl)) {       \
             std::stringstream s;                        \
             s << message;                               \

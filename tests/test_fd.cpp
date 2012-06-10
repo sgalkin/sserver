@@ -9,7 +9,7 @@ BOOST_AUTO_TEST_CASE(test_construct_empty) {
     {
         FD fd;
         BOOST_CHECK_EQUAL(count_descriptors(), c);
-        BOOST_CHECK_EQUAL(fd, -1);
+        BOOST_CHECK_EQUAL(fd.get(), -1);
     }
     BOOST_CHECK_EQUAL(count_descriptors(), c);
 }
@@ -32,10 +32,65 @@ BOOST_AUTO_TEST_CASE(test_construct_fd) {
     BOOST_CHECK_EQUAL(count_descriptors(), c);
 }
 
+FD foo() {
+    return FD(open("/dev/null", O_RDONLY));
+}
+
+BOOST_AUTO_TEST_CASE(test_return) {
+    int c = count_descriptors();
+    {
+        FD fd = foo();
+        BOOST_CHECK_EQUAL(count_descriptors(), c + 1);
+    }
+    BOOST_CHECK_EQUAL(count_descriptors(), c);
+}
+
+BOOST_AUTO_TEST_CASE(test_move) {
+    int c = count_descriptors();
+    {
+        FD fd1(open("/dev/null", O_RDONLY));
+        int fd = fd1.get();
+        BOOST_CHECK_EQUAL(count_descriptors(), c + 1);
+        FD fd2 = fd1;
+        BOOST_CHECK_EQUAL(count_descriptors(), c + 1);
+        BOOST_CHECK_EQUAL(fd2.get(), fd);
+        BOOST_CHECK_EQUAL(fd1.get(), -1);
+    }
+    BOOST_CHECK_EQUAL(count_descriptors(), c);
+}
+
+BOOST_AUTO_TEST_CASE(test_assign_self) {
+    int c = count_descriptors();
+    {
+        FD fd(open("/dev/null", O_RDONLY));
+        int f = fd.get();
+        BOOST_CHECK_EQUAL(count_descriptors(), c + 1);
+        fd = fd;
+        BOOST_CHECK_EQUAL(count_descriptors(), c + 1);
+        BOOST_CHECK_EQUAL(fd.get(), f);
+    }
+    BOOST_CHECK_EQUAL(count_descriptors(), c);
+}
+
+BOOST_AUTO_TEST_CASE(test_assign) {
+    int c = count_descriptors();
+    {
+        FD fd1(open("/dev/null", O_RDONLY));
+        FD fd2(open("/dev/null", O_RDONLY));
+        int f = fd2.get();
+        BOOST_CHECK_EQUAL(count_descriptors(), c + 2);
+        fd1 = fd2;
+        BOOST_CHECK_EQUAL(count_descriptors(), c + 1);
+        BOOST_CHECK_EQUAL(fd1.get(), f);
+        BOOST_CHECK_EQUAL(fd2.get(), -1);
+    }
+    BOOST_CHECK_EQUAL(count_descriptors(), c);
+}
+
 BOOST_AUTO_TEST_CASE(test_get) {
     FD fd(1024, false);
     BOOST_CHECK_EQUAL(fd.get(), 1024);
-    BOOST_CHECK_EQUAL(fd, 1024);
+//    BOOST_CHECK_EQUAL(fd, 1024);
 }
 
 BOOST_AUTO_TEST_CASE(test_reset_empty) {
@@ -77,16 +132,16 @@ BOOST_AUTO_TEST_CASE(test_swap) {
     FD s(open("/dev/null", O_RDONLY));
     FD d(open("/dev/null", O_RDONLY));
     int c = count_descriptors();
-    int src = s;
-    int dst = d;
-    swap(s, d);
+    int src = s.get();
+    int dst = d.get();
+    s.swap(d);
     BOOST_CHECK_EQUAL(count_descriptors(), c);
     BOOST_CHECK_EQUAL(src, d.get());
     BOOST_CHECK_EQUAL(dst, s.get());
-    s.swap(d);
-    BOOST_CHECK_EQUAL(count_descriptors(), c);
-    BOOST_CHECK_EQUAL(dst, d.get());
-    BOOST_CHECK_EQUAL(src, s.get());
+    // swap(s, d);
+    // BOOST_CHECK_EQUAL(count_descriptors(), c);
+    // BOOST_CHECK_EQUAL(dst, d.get());
+    // BOOST_CHECK_EQUAL(src, s.get());
 }
 
 BOOST_AUTO_TEST_CASE(test_write_error) {

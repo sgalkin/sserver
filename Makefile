@@ -13,6 +13,7 @@ LIBS = \
 	boost_program_options \
 
 TESTS = \
+	tests/test_erase_iterator.cpp \
 	tests/test_fd.cpp \
 	tests/test_interface.cpp \
 	tests/test_log.cpp \
