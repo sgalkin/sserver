@@ -6,7 +6,9 @@
 #include "log.h"
 #include "exception.h"
 #include "code.h"
+#include "storage.h"
 #include <boost/scoped_ptr.hpp>
+#include <boost/function.hpp>
 #include <memory>
 #include <poll.h>
 #include <sys/socket.h>
@@ -21,8 +23,8 @@ public:
     virtual bool is_fail() const = 0;
 //    virtual void throw_error() const = 0;
 
-    void read() { DEBUG("read"); do_try(&MessageBase::do_read); }
-    void write() { DEBUG("write"); do_try(&MessageBase::do_write); } 
+    void read() { DEBUG("read"); do_read(); notify(); }
+    void write() { DEBUG("write"); do_write(); notify(); } 
     void hangup() { DEBUG("hangup"); do_hangup(); notify(); }
     void error() { DEBUG("error"); do_error(); notify(); }
     void pass() {}
@@ -32,15 +34,6 @@ public:
     virtual void notify() = 0;
     
 private:
-    void do_try(void (MessageBase::*op)()) {
-        try {
-            (this->*op)();
-            notify();
-        } catch(std::runtime_error& ex) {
-            ERROR(ex.what());
-        }
-    }
-
     virtual void do_read() = 0;
     virtual void do_write() = 0;
     virtual void do_hangup() = 0;
@@ -180,49 +173,51 @@ private:
 template<typename FDType>
 class Penalty : public Input, public Control<FDType> {
 public:
-    typedef MessageBase* type;
-    Penalty() {}
-    explicit Penalty(MessageBase* msg) : msg_(msg) {}
+    typedef void* type;
+//    Penalty() {}
+//    explicit Penalty(MessageBase* msg) : msg_(msg) {}
     bool perform(FDType* pipe) {
         suppress(*pipe);
         return true;
     }
-    type data() { return msg_; }
+    type data() { return 0; }//return msg_; }
 
-private:
+//private:
     // potential memory leak
-    MessageBase* msg_;
+//    MessageBase* msg_;
 };
 
-template<typename FDType>
-class Echo : public Output, public Control<FDType> {
-public:
-    typedef SReq type;
-    Echo(const SReq& data) :
-        data_(data.first), client_(data.second), pos_(0) {}
+// template<typename FDType>
+// class Echo : public Output, public Control<FDType> {
+// public:
+//     typedef SReq type;
+//     Echo(const SReq& data) :
+//         data_(data.first), client_(data.second), pos_(0) {}
 
-    bool perform(FDType* socket) {
-        int pos = socket->write(&data_[pos_], data_.size() - pos_, client_);
-        if(pos == 0) return hangup(socket);
-        pos_ += pos;
-        return pos_ == data_.size();
-    }
+//     bool perform(FDType* socket) {
+//         int pos = socket->write(&data_[pos_], data_.size() - pos_, client_);
+//         if(pos == 0) return hangup(socket);
+//         pos_ += pos;
+//         return pos_ == data_.size();
+//     }
 
-private:
-    std::string data_;
-    Socket::Target client_;
-    size_t pos_;
-};
+// private:
+//     std::string data_;
+//     Socket::Target client_;
+//     size_t pos_;
+// };
 
 template<typename FDType>
 class Write : public Output, public Control<FDType> {
+    typedef typename boost::function<int (FDType*,const char*,size_t)> Writer;
 public:
     typedef std::string type;
-    Write(const type& data) :
-        data_(data), pos_(0) {}
+
+    Write(const type& data, Writer writer = &FDType::write) :
+        data_(data), pos_(0), writer_(writer) {}
 
     bool perform(FDType* fd) {
-        int pos = fd->write(&data_[pos_], data_.size() - pos_);
+        int pos = writer_(fd, &data_[pos_], data_.size() - pos_);
         if(pos == 0) return hangup(fd);
         pos_ += pos;
         return pos_ == data_.size();
@@ -231,6 +226,7 @@ public:
 private:
     std::string data_;
     size_t pos_;
+    Writer writer_;
 };
 
 
@@ -246,28 +242,33 @@ private:
 //     std::string error_;
 // };
 
-template<typename T> struct Own {};// typedef T type};
 
 template<typename T>
-struct Storage {
-    typedef T base;
-    typedef T* type; 
-    static base* get(T* ptr) { return ptr; }
-    static const base* get(const T* ptr) { return ptr; }
+struct NotifyHelper {
+    template<typename U>
+    static void notify(T* notify, U* data) { notify->notify(data); }
 };
 
-template<typename T>
-struct Storage< Own<T> > { 
-    typedef T base;
-    typedef boost::scoped_ptr<T> type; 
-    static base* get(type& ptr) { return ptr.get(); }
-    static const base* get(const type& ptr) { return ptr.get(); }
+template<>
+struct NotifyHelper<Pipe> {
+    template<typename U>
+    static void notify(Pipe* notify, U*) { ::notify(notify); }
 };
 
+template<typename H, typename F>
+bool try_do(H& handler, F fd) {
+    try {
+        return handler.perform(fd);
+    } catch(std::runtime_error& ex) {
+        ERROR(ex.what());
+        return handler.fail();
+    }
+}
 
-template<typename Type,
+template<typename Type,         
          template <typename F> class Read = NOP,
-         template <typename F> class Write = NOP>
+         template <typename F> class Write = NOP,
+         typename Notify = Pipe>
          // template <typename F> class Hangup = Hangup,
          // template <typename F> class Error = Error>
 class Message : public MessageBase {
@@ -278,17 +279,17 @@ public:
 //                 Hangup<FDType>::Event | Error<FDType>::Event)
     };
 
-    explicit Message(FDType* fd, Pipe* notify = 0,
+    explicit Message(FDType* fd, Notify* notify = 0,
             const typename Write<FDType>::type& data = typename Write<FDType>::type()) :
         fd_(fd), notify_(notify), writer_(data) {}
 
-    Message(FDType* fd, const Read<FDType>& reader, Pipe* notify = 0) :
+    Message(FDType* fd, const Read<FDType>& reader, Notify* notify = 0) :
         fd_(fd), notify_(notify), reader_(reader) {}
 
-    Message(FDType* fd, const Write<FDType>& writer, Pipe* notify = 0) :
+    Message(FDType* fd, const Write<FDType>& writer, Notify* notify = 0) :
         fd_(fd), notify_(notify), writer_(writer) {}
 
-    Message(FDType* fd, const Read<FDType>& reader, const Write<FDType>& writer, Pipe* notify = 0) :
+    Message(FDType* fd, const Read<FDType>& reader, const Write<FDType>& writer, Notify* notify = 0) :
         fd_(fd), notify_(notify), reader_(reader), writer_(writer) {}
 
     // in C++11 move data from reader
@@ -306,10 +307,10 @@ public:
     int events() const { return Event; }
 
 private:
-    void notify() { if(notify_) ::notify(notify_); }
+    void notify() { if(notify_) NotifyHelper<Notify>::notify(notify_, this); }
 
-    void do_read() { ready_ = reader_.perform(Storage<Type>::get(fd_)); }
-    void do_write() { ready_ = writer_.perform(Storage<Type>::get(fd_)); }
+    void do_read() { ready_ = try_do(reader_, Storage<Type>::get(fd_)); }
+    void do_write() { ready_ = try_do(writer_, Storage<Type>::get(fd_)); }
     void do_hangup() {
         reader_.hangup(Storage<Type>::get(fd_));
         writer_.hangup(Storage<Type>::get(fd_));
@@ -322,7 +323,7 @@ private:
     //    void do_error(const std::string& error) { error_.perform(error); }
 
     typename Storage<Type>::type fd_;
-    Pipe* notify_;
+    Notify* notify_;
     Read<FDType> reader_;
     Write<FDType> writer_;
     // Hangup<FDType> hangup_;

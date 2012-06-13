@@ -7,30 +7,6 @@
 #include <string>
 #include <list>
 
-class Pipe;
-
-struct WriteTask {
-    WriteTask(const std::string& filename, const Record& record, Pipe* notify) :
-        filename(filename), record(record), notify(notify) {}
-
-    std::string filename;       // one thread for all files not good, but enough here
-    Record record;
-    Pipe* notify;
-};
-
-class Writer : public PollHandler<WriteTask> {
-public:
-    explicit Writer(Pipe* notify) : PollHandler<WriteTask>(notify) {}
-
-    void add_task(WriteTask client) { clients_.push_back(client); }
-
-private:
-    void fetch_message();
-    void process_message(MessageBase* msg);
-
-    std::list<WriteTask> clients_;
-};
-
 template<typename FDType> class Find;
 
 template<>
@@ -54,6 +30,7 @@ public:
             }
             file->seek((tail - (buf + read)) + 1);
             *tail = 0;
+            DEBUG(name_ << " " << std::string(buf));
             data_ = find(buf);
             if(data_) return true;
         } while(read == sizeof(buf) - 1);
@@ -80,6 +57,46 @@ private:
     std::string name_;
     type data_;
     std::string record_;
+};
+
+class Pipe;
+class WriteTask;
+
+typedef Message<Own<File>, Find, NOP, WriteTask> FindRecord;
+typedef Message<Own<File>, NOP, Write, WriteTask> WriteRecord;
+
+class WriteTask {
+public:
+    enum State { READ, WRITE, DONE };
+
+    WriteTask(const std::string& filename, const Record& record, Pipe* notify);
+
+    void notify(FindRecord* msg);
+    void notify(WriteRecord* msg);
+
+    MessageBase* message();
+
+    State state() const { return state_; }
+
+private:
+    std::string filename_;       // one thread for all files not good, but enough here
+    Record record_;
+    Pipe* notify_;
+    State state_;
+};
+
+class Writer : public PollHandler<WriteTask> {
+public:
+    explicit Writer(Pipe* notify) : PollHandler<WriteTask>(notify) {}
+
+    void add_task(WriteTask client) { clients_.push_back(client); }
+
+private:
+    void add_front();
+    void fetch_message();
+    void process_message(MessageBase* msg);
+
+    std::list<WriteTask> clients_;
 };
 
 #endif // SSERVER_FILE_IO_H_INCLUDED

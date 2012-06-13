@@ -3,13 +3,12 @@
 
 #include "socket.h"
 #include "pool.h"
+#include "client.h"
 #include <boost/program_options.hpp>
 #include <boost/scoped_ptr.hpp>
 
 class TCPSocket;
 class UDPSocket;
-class MessageBase;
-class ClientHandler;
 
 class Server {
 public:
@@ -21,7 +20,8 @@ public:
 private:
     boost::scoped_ptr<TCPSocket> tcp_;
     boost::scoped_ptr<UDPSocket> udp_;
-    Pool<MessageBase*, ClientHandler> pool_;
+    Pool<TCPClient*, ClientHandler<TCPClient*> > tcp_pool_;
+    Pool<UDPClient*, ClientHandler<UDPClient*> > udp_pool_;
 
     boost::program_options::variables_map config_;
 };

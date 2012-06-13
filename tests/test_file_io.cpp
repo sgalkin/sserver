@@ -46,24 +46,21 @@ BOOST_AUTO_TEST_CASE(test_file_not_exists) {
 
 BOOST_AUTO_TEST_CASE(test_data_in_file) {
     TempFile tmp("tests/foobar");
-    std::ofstream data(tmp.name().c_str());
-    data << "aaa3;bbb3\n";
-    data.close();
-    {
-        WriterTest wt;
-        wt.add(tmp.name(), Record("aaa3", "bbb"));
-        BOOST_FOREACH(MessageBase* msg, wt.perform()) {
-            BOOST_CHECK(msg->is_fail());
-            wt.remove(msg);
-        }
+    std::string data = "aaa3;bbb3\n";
+    tmp.write(data.c_str(), data.size());
+    
+    WriterTest wt;
+    wt.add(tmp.name(), Record("aaa3", "bbb"));
+    BOOST_FOREACH(MessageBase* msg, wt.perform()) {
+        BOOST_CHECK(msg->is_fail());
+        wt.remove(msg);
     }
 }
 
 BOOST_AUTO_TEST_CASE(test_no_data_in_file) {
     TempFile tmp("tests/foobar");
-    std::ofstream data(tmp.name().c_str());
-    data << "aaa3;bbb3\n";
-    data.close();
+    std::string data = "aaa3;bbb3\n";
+    tmp.write(data.c_str(), data.size());
     
     WriterTest wt;
     wt.add(tmp.name(), Record("ccc3", "bbb"));
