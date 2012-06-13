@@ -47,6 +47,13 @@ std::string socket_name(const struct sockaddr* sa, socklen_t sz) {
     return std::string(host) + ":" + std::string(port);
 }
 
+std::string peer_name(int fd) {
+    Socket::Target::value_type addr;
+    socklen_t len = sizeof(addr);
+    CHECK_CALL(getpeername(fd, (struct sockaddr*)&addr, &len), "getpeername");
+    return socket_name((const sockaddr*)&addr, len);
+}
+
 inline const std::string& socket_type(int type) {
     static const std::string tcp = "TCP";
     static const std::string udp = "UDP";
@@ -74,7 +81,7 @@ Socket::Socket(int type, const std::string& host, unsigned short port)
         << socket_name(info->ai_addr, info->ai_addrlen));
 
   enable(socket_, SOL_SOCKET, SO_REUSEADDR);
-  enable(socket_, SOL_SOCKET, SO_KEEPALIVE);
+//  enable(socket_, SOL_SOCKET, SO_KEEPALIVE); // server should never close connection
 
   CHECK_CALL(bind(socket_.get(), info->ai_addr, info->ai_addrlen),
              "bind(" << socket_ << ")");
@@ -89,19 +96,52 @@ Socket::~Socket() {
     if(socket_.get() != -1) DEBUG("Close socket(" << socket_ << ")");
 }
 
-UDPMessage UDPSocket::read() {
-    sockaddr_in addr;
-    socklen_t addrlen = sizeof(addr);
-    char buf[65536]; // max UDP payload size
+std::string Socket::error() const {
+    int err;
+    socklen_t len = sizeof(err);
+    CHECK_CALL(getsockopt(socket(), SOL_SOCKET, SO_ERROR, &err, &len),
+               "getsockopt(" << socket_ << ")");
+    return err != 0 ? string_error(err) : "";
+}
+
+int Socket::read(char* buf, size_t size, Target::value_type* client) {
+    socklen_t len = client ? sizeof(Target::value_type) : 0;
     int read = 0;
     CHECK_CALL((read = io(boost::bind(&recvfrom, _1, _2, _3, 0,
-                                      (sockaddr*)&addr, &addrlen),
-                          buf, sizeof(buf))), "recvfrom");
-    REQUIRE(addrlen == sizeof(addr), "strange address");
-    DEBUG("read(" << socket() << ") from " 
-          << socket_name((sockaddr*)&addr, addrlen) << " " << read << " bytes");
-    return UDPMessage(std::string(buf, read), addr);
+                                      (struct sockaddr*)client, &len), buf, size)),
+               "recvfrom(" << socket_ << ")");
+    REQUIRE((client == 0 && len == 0) ||
+            (client != 0 && len == sizeof(Target::value_type)), "strange address");
+    DEBUG("read(" << socket_ << ") from " << 
+          (client ? socket_name((const struct sockaddr*)client, len) : 
+           peer_name(socket_.get())) << " " << read << " byte(s)");
+    return read;
 }
+
+int Socket::write(const char* buf, size_t size, const Target::value_type* client) {
+    socklen_t len = client ? sizeof(Target::value_type) : 0;
+    int written = 0;
+    CHECK_CALL((written = io(boost::bind(&sendto, _1, _2, _3, 0,
+                                         (const struct sockaddr*)client, len), buf, size)),
+               "sendto(" << socket_ << ")");
+    DEBUG("write(" << socket_ << ") to "
+          << (client ? socket_name((const struct sockaddr*)client, len) : 
+              peer_name(socket_.get())) << " " << written << " byte(s)");
+    return written;
+}
+
+
+Socket::Request UDPSocket::read(char* buf, size_t size) {
+    Socket::Target::value_type client;
+    int read = Socket::read(buf, size, &client);
+    return Socket::Request(read, client);
+}
+
+int UDPSocket::write(const char* buf, size_t size, const Target& client) {
+    REQUIRE(client, "write(" << socket() << "): target not specified");
+    return Socket::write(buf, size, &(*client));
+}
+
 
 TCPSocket::TCPSocket(const std::string& host, unsigned short port) :
     Socket(SOCK_STREAM, host, port) {
@@ -119,11 +159,10 @@ TCPSocket TCPSocket::accept() const{
     return peer;
 }
 
-std::string TCPSocket::read() {
-    int read = 0;
-    char buf[65536]; // max UDP payload size
-    CHECK_CALL((read = io(boost::bind(&recv, _1, _2, _3, 0),
-                          buf, sizeof(buf))), "recv");
-    DEBUG("read(" << socket() << ") " << read << " bytes");
-    return std::string(buf, read);
+Socket::Request TCPSocket::read(char* buf, size_t size) {
+    return Socket::Request(Socket::read(buf, size, 0), boost::none);
+}
+
+int TCPSocket::write(const char* buf, size_t size, const Target&) {
+    return Socket::write(buf, size, 0);
 }

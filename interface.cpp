@@ -32,7 +32,7 @@ Interface::Interface() {
     for(const struct ifaddrs* i = ifs; i; i = i->ifa_next) {
         if(!i->ifa_addr ||
            !(i->ifa_addr->sa_family == AF_INET ||
-             false)) // TODO: think about ipv6 not now
+             false)) // TODO: think about ipv6
 //             i->ifa_addr->sa_family == AF_INET6))
             continue;
         char host[NI_MAXHOST];

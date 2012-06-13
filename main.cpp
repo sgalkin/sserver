@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
         ("udp_if", po::value<std::string>()->default_value("lo"), "UDP interface")
         ("udp_port", po::value<unsigned short>()->default_value(10000), "UDP port")
         ("datafile", po::value<std::string>(), "Datafile")
-        ("sleep", po::value<unsigned>()->default_value(0), "Response timeout")
+        ("sleep", po::value<int>()->default_value(0), "Response timeout")
         ("maint", po::value<bool>()->default_value(false), "Maintenance mode")
         ("loglevel", po::value<std::string>()->default_value("WARN"), "Log level");
 

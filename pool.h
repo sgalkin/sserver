@@ -2,26 +2,15 @@
 #define SSERVER_POOL_H_INCLUDED
 
 #include "fd.h"
+#include "code.h"
 #include "log.h"
 #include <boost/thread/thread.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
+#include <boost/bind.hpp>
 #include <algorithm>
 #include <queue>
 
 static const unsigned MIN_THREADS = 4;
-
-inline void notify(Pipe& pipe) {
-    REQUIRE(pipe.write("*", 1) == 1, "couldn't notify thread");
-}
-
-template<typename Task>
-class Handler {
-public: 
-    virtual ~Handler() {};
-
-    virtual void add_task(Task task) = 0;
-    virtual void perform(Pipe& notification) = 0;
-};
 
 template<typename Task, typename Handler>
 class Pool {
@@ -38,7 +27,7 @@ public:
 
     ~Pool() {
         running_ = false; // is race posible?
-        std::for_each(pipes_.begin(), pipes_.end(), &notify);
+        std::for_each(pipes_.begin(), pipes_.end(), boost::bind(&notify<Pipe>, _1, OK));
         pool_.join_all();
     }
 
@@ -56,15 +45,14 @@ private:
         DEBUG("Creating thread pool with " << thread_num << " threads");
         for(int i = 0; i < thread_num; ++i) {
             pipes_.push_back(new Pipe);
-            pool_.create_thread(
-                boost::bind(&Pool::work, this, boost::ref(pipes_.back())));
+            pool_.create_thread(boost::bind(&Pool::work, this, &pipes_.back()));
         }
     }
 
-    void work(Pipe& pipe) {
+    void work(Pipe* pipe) {
         DEBUG("Working thread started");
         do {
-            Handler handler;
+            Handler handler(pipe);
             do {
                 {
                     boost::mutex::scoped_lock lock(queue_mutex_);
@@ -74,7 +62,7 @@ private:
                     }
                 }
                 try {
-                    handler.perform(pipe);
+                    handler.perform();
                 } catch(std::runtime_error& ex) {
                     ERROR("Error in working thread `" 
                           << ex.what() << "' restarting handler...");

@@ -1,11 +1,14 @@
 TARGET = sserver
 
 SOURCES = \
+	file_io.cpp \
 	interface.cpp \
 	main.cpp \
+	poll.cpp \
 	log.cpp \
 	server.cpp \
 	socket.cpp \
+	sleep.cpp \
 
 LIBS = \
 	boost_filesystem \
@@ -15,12 +18,16 @@ LIBS = \
 TESTS = \
 	tests/test_erase_iterator.cpp \
 	tests/test_fd.cpp \
+	tests/test_file.cpp \
+	tests/test_file_io.cpp \
 	tests/test_interface.cpp \
 	tests/test_log.cpp \
 	tests/test_message.cpp \
 	tests/test_pool.cpp \
 	tests/test_socket.cpp \
+	tests/test_sleep.cpp \
 	tests/test_tempfile.cpp \
+
 
 #	tests/test_traits.cpp \
 
@@ -32,7 +39,7 @@ LDFLAGS += $(addprefix -l,${LIBS})
 TESTS_LDFLAGS += $(addprefix -l,${TESTS_LIBS})
 
 all: ${TARGET} check
-	./$< -c config/sserver.conf
+#	./$< -c config/sserver.conf
 
 ${TARGET}: ${SOURCES:.cpp=.o} Makefile
 	${LINK.cpp} -o $@ $(filter %.o,$^)

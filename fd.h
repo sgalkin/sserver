@@ -27,7 +27,7 @@ public:
         if(blocking) set_flag(O_NONBLOCK);
     }
     ~FD() {
-        close(fd_);
+        if(fd_ != -1) close(fd_);
     }
 
     FD& operator=(FD& fd) {

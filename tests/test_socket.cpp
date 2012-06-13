@@ -115,7 +115,8 @@ BOOST_AUTO_TEST_CASE(test_udp_read) {
     FD cs(::socket(AF_INET, SOCK_DGRAM, 0));
     BOOST_REQUIRE(sendto(cs.get(), "hello", 5, 0,
                          (sockaddr*)&server, sizeof(sockaddr)) != -1);
-    std::string data = boost::get<0>(ss.read());
+    char buf[32];
+    std::string data(buf, ss.read(buf, sizeof(buf)).first);
     BOOST_CHECK_EQUAL(data, "hello");
 }
 
@@ -130,6 +131,45 @@ BOOST_AUTO_TEST_CASE(test_tcp_read) {
     connect(cs.get(), (sockaddr*)&server, sizeof(sockaddr));
     TCPSocket ps = ss.accept();
     BOOST_REQUIRE(send(cs.get(), "hello", 5, 0) != -1);
-    std::string data = ps.read();
+    char buf[32];
+    std::string data(buf, ps.read(buf, sizeof(buf)).first);
     BOOST_CHECK_EQUAL(data, "hello");
+}
+
+BOOST_AUTO_TEST_CASE(test_udp_write) {
+    UDPSocket ss("*", 10000);
+    struct sockaddr_in server;
+    socklen_t size = sizeof(server);
+    BOOST_REQUIRE(getsockname(ss.get(), (struct sockaddr*)&server, &size) != -1);
+    BOOST_REQUIRE_EQUAL(size, sizeof(server));
+
+    FD cs(::socket(AF_INET, SOCK_DGRAM, 0));
+    BOOST_REQUIRE(sendto(cs.get(), "hello", 5, 0,
+                         (struct sockaddr*)&server, sizeof(sockaddr)) != -1); 
+    char buf[32];
+    Socket::Request req = ss.read(buf, sizeof(buf));
+    ss.write("bye", 3, req.second);
+    
+    int read = recv(cs.get(), buf, sizeof(buf), 0);
+    BOOST_CHECK_EQUAL(read, 3);
+    BOOST_CHECK(memcmp("bye", buf, read) == 0);
+}
+
+BOOST_AUTO_TEST_CASE(test_tcp_write) {
+    TCPSocket ss("*", 10000);
+    struct sockaddr_in server;
+    socklen_t size = sizeof(server);
+    BOOST_REQUIRE(getsockname(ss.get(), (struct sockaddr*)&server, &size) != -1);
+    BOOST_REQUIRE_EQUAL(size, sizeof(server));
+
+    FD cs(::socket(AF_INET, SOCK_STREAM, 0));
+    connect(cs.get(), (sockaddr*)&server, sizeof(sockaddr));
+
+    TCPSocket ps = ss.accept();
+    ps.write("bye", 3);
+
+    char buf[32];
+    int read = recv(cs.get(), buf, sizeof(buf), 0);
+    BOOST_CHECK_EQUAL(read, 3);
+    BOOST_CHECK(memcmp("bye", buf, read) == 0);
 }

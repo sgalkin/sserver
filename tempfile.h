@@ -3,6 +3,7 @@
 
 #include "fd.h"
 #include <cstdlib>
+#include <string>
 
 class TempFile {
 public:
@@ -15,6 +16,8 @@ public:
     }
 
     const std::string& name() const { return path_; }
+    int write(const char* buf, size_t size) { return fd_.write(buf, size); }
+    int read(char* buf, size_t size) { return fd_.read(buf, size); }
 
     // void rename(const std::string& newname) {
     //     CHECK_CALL(::rename(path_.c_str(), newname.c_str()));

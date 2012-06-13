@@ -9,6 +9,8 @@ public:
     static size_t threads_count() { return threads_.size(); }
     static size_t tasks_count() { return tasks_.size(); }
 
+    Sleeper(Pipe*) {}
+
     void add_task(int id) {
         {
             boost::mutex::scoped_lock lock(mutex_);
@@ -16,7 +18,7 @@ public:
         }
     }
 
-    void perform(Pipe&) {
+    void perform() {
         {
             boost::mutex::scoped_lock lock(mutex_);
             threads_.insert(boost::this_thread::get_id());
