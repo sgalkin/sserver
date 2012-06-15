@@ -2,7 +2,6 @@
 #define SSERVER_LOG_H_INCLUDED
 
 #include "fd.h"
-#include "exception.h"
 #include <string>
 #include <boost/utility.hpp>
 #include <sstream>
@@ -13,7 +12,6 @@ public:
 
     void write(Level level, const std::string& message);
     void set_level(Level level) { level_ = level; }
-    void set_log(int fd) { log_.reset(fd); }
     Level level() const { return level_; }
 
     static Logger& instance();

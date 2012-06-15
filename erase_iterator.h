@@ -14,7 +14,8 @@ public:
     erase_iterator() : data_(0) {}
     explicit erase_iterator(C& data) :
         erase_iterator::iterator_adaptor_(data.begin()),
-        data_(data.empty() ? 0 : &data) {}
+        data_(data.empty() ? 0 : &data)
+    {}
 
 private:
     void increment() {

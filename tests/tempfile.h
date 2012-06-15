@@ -1,7 +1,7 @@
 #ifndef SSERVER_TEMPFILE_H_INCLUDED
 #define SSERVER_TEMPFILE_H_INCLUDED
 
-#include "fd.h"
+#include "../fd.h"
 #include <cstdlib>
 #include <string>
 
@@ -18,11 +18,6 @@ public:
     const std::string& name() const { return path_; }
     int write(const char* buf, size_t size) { return fd_.write(buf, size); }
     int read(char* buf, size_t size) { return fd_.read(buf, size); }
-
-    // void rename(const std::string& newname) {
-    //     CHECK_CALL(::rename(path_.c_str(), newname.c_str()));
-    //     path.clear();
-    // }
 
 private:
     std::string path_;

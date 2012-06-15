@@ -10,7 +10,7 @@ class Sleep {
 public:
     typedef std::pair<Pipe*, int> Client;
 
-    Sleep(Pipe* pipe) : pipe_(pipe) {}
+    explicit Sleep(Pipe* pipe) : pipe_(pipe) {}
 
     void add_task(Client client);
     void perform();
@@ -18,7 +18,7 @@ public:
 private:
     typedef std::list<Client> Clients;
 
-    Pipe* pipe_;
+    Pipe* pipe_; // callback notification may be faster, and less resource-intensive
     Clients clients_;
 };
 

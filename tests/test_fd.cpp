@@ -4,6 +4,22 @@
 #include <algorithm>
 #include <stdio.h>
 
+namespace {
+
+FD foo() {
+    return FD(open("/dev/null", O_RDONLY));
+}
+
+// Lambdas are available only in gcc 4.6+ :(
+struct Generator {
+    char operator()() const {
+        static char data = 0;
+        return data++;
+    }
+};
+
+}
+
 BOOST_AUTO_TEST_CASE(test_construct_empty) {
     int c = count_descriptors();
     {
@@ -30,10 +46,6 @@ BOOST_AUTO_TEST_CASE(test_construct_fd) {
         BOOST_CHECK_EQUAL((flags & O_NONBLOCK), O_NONBLOCK);
     }
     BOOST_CHECK_EQUAL(count_descriptors(), c);
-}
-
-FD foo() {
-    return FD(open("/dev/null", O_RDONLY));
 }
 
 BOOST_AUTO_TEST_CASE(test_return) {
@@ -90,7 +102,6 @@ BOOST_AUTO_TEST_CASE(test_assign) {
 BOOST_AUTO_TEST_CASE(test_get) {
     FD fd(1024, false);
     BOOST_CHECK_EQUAL(fd.get(), 1024);
-//    BOOST_CHECK_EQUAL(fd, 1024);
 }
 
 BOOST_AUTO_TEST_CASE(test_reset_empty) {
@@ -138,10 +149,6 @@ BOOST_AUTO_TEST_CASE(test_swap) {
     BOOST_CHECK_EQUAL(count_descriptors(), c);
     BOOST_CHECK_EQUAL(src, d.get());
     BOOST_CHECK_EQUAL(dst, s.get());
-    // swap(s, d);
-    // BOOST_CHECK_EQUAL(count_descriptors(), c);
-    // BOOST_CHECK_EQUAL(dst, d.get());
-    // BOOST_CHECK_EQUAL(src, s.get());
 }
 
 BOOST_AUTO_TEST_CASE(test_write_error) {
@@ -183,13 +190,6 @@ BOOST_AUTO_TEST_CASE(test_read_eof) {
     BOOST_CHECK_EQUAL(path.substr(path.rfind("/") + 1), "test_fd");
 }
 
-// Lambdas are only in gcc 4.6 :(
-struct Generator {
-    char operator()() const {
-        static char data = 0;
-        return data++;
-    }
-};
 
 BOOST_AUTO_TEST_CASE(test_io_data) {
     int fds[2];

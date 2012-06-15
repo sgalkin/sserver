@@ -20,12 +20,13 @@ BOOST_AUTO_TEST_CASE( test_sleep ) {
     pool.add_task(Sleep::Client(&p1, 2000));
     sleep(1);
     pool.add_task(Sleep::Client(&p2, 3000));
-    std::vector<struct pollfd> pollfd;
+    typedef std::vector<struct pollfd> Pollfd;
+    Pollfd pollfd;
     pollfd.push_back(make_poll(p1));
     pollfd.push_back(make_poll(p2));
     while(!pollfd.empty()) {
         BOOST_REQUIRE(poll(&pollfd[0], pollfd.size(), -1) != -1);
-        for(std::vector<struct pollfd>::iterator it = pollfd.begin(); it != pollfd.end(); ) {
+        for(Pollfd::iterator it = pollfd.begin(); it != pollfd.end(); ) {
             if(it->revents == 0) { ++it; continue; }
             if(it->fd == p1.reader().get()) {
                 BOOST_CHECK(time(0) - s >= 1 && time(0) - s <= 3);

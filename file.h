@@ -32,6 +32,7 @@ private:
     FD fd_;
 };
 
+
 class Record {
 public:
     explicit Record(const std::string& record) :

@@ -31,7 +31,7 @@ CHECK = [ ('GET username=id%d\r\n', '404 Not Found\r\n'),
   
 
 def server(name):
-    return subprocess.Popen(['../sserver', '-c', name])
+    return subprocess.Popen(['./sserver', '-c', name])
 
 def tcp_client(ident, data):
     try:

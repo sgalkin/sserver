@@ -23,39 +23,24 @@ public:
     FD(FD& fd) : fd_(fd.release()) {} // should be FD&&
 
     explicit FD(int fd, bool blocking = true) : fd_(fd) {
-        CHECK_CALL(fd_, "open fd"); // typical call: FD(open(...)), so errno is correct usually
+        // typical call is FD(open(...)), so errno is correct usually
+        CHECK_CALL(fd_, "open fd");
         if(blocking) set_flag(O_NONBLOCK);
     }
-    ~FD() {
-        if(fd_ != -1) close(fd_);
-    }
+    ~FD() { if(fd_ != -1) close(fd_); }
 
     FD& operator=(FD& fd) {
         FD(fd).swap(*this);
         return *this;
     }
 
-    operator FDRef() {
-        return FDRef(release());
-    }
+    operator FDRef() { return FDRef(release()); }
 
-    int get() const {
-        return fd_;
-    }
+    int get() const { return fd_; }
 
-//    operator int() const { return get(); }
-
-    void reset() {
-        FD().swap(*this);
-    }
-
-    void reset(int fd, bool blocking = true) {
-        FD(fd, blocking).swap(*this);
-    }
-
-    void swap(FD& fd) {
-        std::swap(fd_, fd.fd_);
-    }
+    void reset() { FD().swap(*this); }
+    void reset(int fd, bool blocking = true) { FD(fd, blocking).swap(*this); }
+    void swap(FD& fd) { std::swap(fd_, fd.fd_); }
 
     int release() {
         int fd = fd_;
@@ -63,13 +48,8 @@ public:
         return fd;
     }
 
-    int write(const char* data, size_t size) {
-        return io(&::write, data, size);
-    }
-
-    int read(char* buf, size_t size) {
-        return io(&::read, buf, size);
-    }
+    int write(const char* data, size_t size) { return io(&::write, data, size); }
+    int read(char* buf, size_t size) { return io(&::read, buf, size); }
 
     template<typename Op, typename Data>
     int io(Op operation, Data data, size_t size) {
@@ -97,9 +77,6 @@ inline std::ostream& operator<<(std::ostream& o, const FD& fd) {
     return o << fd.get();
 }
 
-// inline void swap(FD& lhs, FD& rhs) {
-//     lhs.swap(rhs);
-// }
 
 class Pipe {
 public:
@@ -110,13 +87,8 @@ public:
         writer_.reset(fds[1]);
     }
 
-    int write(const char* data, size_t size) {
-        return writer_.write(data, size);
-    }
-
-    int read(char* buf, size_t size) {
-        return reader_.read(buf, size);
-    }
+    int write(const char* data, size_t size) {  return writer_.write(data, size); }
+    int read(char* buf, size_t size) { return reader_.read(buf, size); }
 
     const FD& writer() const { return writer_; }
     const FD& reader() const { return reader_; }

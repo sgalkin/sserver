@@ -10,9 +10,24 @@
 
 typedef boost::mpl::list<UDPSocket, TCPSocket> Sockets;
 
+namespace {
+template<typename S>
+struct SocketHelper;
+
+template<>
+struct SocketHelper<UDPSocket> {
+    enum { type = SOCK_DGRAM };
+    static int touch(int fd) { return recv(fd, 0, 0, 0); }
+};
+
+template<>
+struct SocketHelper<TCPSocket> {
+    enum { type = SOCK_STREAM };
+    static int touch(int fd) { return accept(fd, 0, 0); }
+};
+}
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_socket_invalid, socket, Sockets) {
-    set_level(Logger::DEBUG);
     int c = count_descriptors();
     BOOST_CHECK_THROW(socket("123.1.1.1", 3000), std::runtime_error);
     BOOST_CHECK_EQUAL(c, count_descriptors());
@@ -36,39 +51,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_socket_reopen, socket, Sockets) {
     BOOST_CHECK_THROW(socket("123.1.1.1", 3000), std::runtime_error);
     BOOST_CHECK_THROW(socket("123.1.1.1", 3000), std::runtime_error);
 }
-
-template<typename S>
-struct SocketHelper;
-
-template<>
-struct SocketHelper<UDPSocket> {
-    enum { type = SOCK_DGRAM };
-    static int touch(int fd) { return recv(fd, 0, 0, 0); }
-    // static int accept(int) { return 0; }
-    // static int connect(int, const struct sockaddr*, socklen_t) { return 0; }
-    // static int send(int fd,
-    //                 const struct sockaddr* addr, socklen_t len, 
-    //                 const std::string& data) {
-    //     return sendto(fd, data.c_str(), data.size(), 0, addr, len);
-    // }
-    // static std::string data(const UDPMessage& data) { return boost::get<0>(data); }
-};
-
-template<>
-struct SocketHelper<TCPSocket> {
-    enum { type = SOCK_STREAM };
-    static int touch(int fd) { return accept(fd, 0, 0); }
-    // static int accept(int fd) { return ::accept(fd, 0, 0); }
-    // static int connect(int fd, const struct sockaddr* serv, socklen_t size) {
-    //     return ::connect(fd, serv, size);
-    // }
-    // static int send(int fd,
-    //                 const struct sockaddr*, socklen_t, 
-    //                 const std::string& data) {
-    //     return ::send(fd, data.c_str(), data.size(), 0);
-    // }
-    // static std::string data(const std::string& data) { return data; }
-};
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_socket_init, socket, Sockets) {
     socket s("*", 10000);

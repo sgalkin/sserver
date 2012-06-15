@@ -65,7 +65,7 @@ private:
                 try {
                     handler.perform();
                 } catch(std::runtime_error& ex) {
-                    ERROR("Error in working thread `" 
+                    ERROR("Error in working thread `"
                           << ex.what() << "' restarting handler...");
                     break;
                 } catch(...) {

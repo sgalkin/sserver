@@ -16,7 +16,7 @@ public:
     Address(int type, const std::string& host, const std::string& port) {
         struct addrinfo hint;
         memset(&hint, 0, sizeof(hint));
-        hint.ai_family = AF_INET; // TODO: thik about IPv6 AF_UNSPEC;
+        hint.ai_family = AF_INET; // TODO: think about IPv6 AF_UNSPEC;
         hint.ai_socktype = type;
         hint.ai_flags = (AI_NUMERICHOST | AI_PASSIVE |
                          AI_NUMERICSERV | AI_ADDRCONFIG);
@@ -112,8 +112,8 @@ int Socket::read(char* buf, size_t size, Target::value_type* client) {
                "recvfrom(" << socket_ << ")");
     REQUIRE((client == 0 && len == 0) ||
             (client != 0 && len == sizeof(Target::value_type)), "strange address");
-    DEBUG("read(" << socket_ << ") from " << 
-          (client ? socket_name((const struct sockaddr*)client, len) : 
+    DEBUG("read(" << socket_ << ") from " <<
+          (client ? socket_name((const struct sockaddr*)client, len) :
            peer_name(socket_.get())) << " " << read << " byte(s)");
     return read;
 }
@@ -125,7 +125,7 @@ int Socket::write(const char* buf, size_t size, const Target::value_type* client
                                          (const struct sockaddr*)client, len), buf, size)),
                "sendto(" << socket_ << ")");
     DEBUG("write(" << socket_ << ") to "
-          << (client ? socket_name((const struct sockaddr*)client, len) : 
+          << (client ? socket_name((const struct sockaddr*)client, len) :
               peer_name(socket_.get())) << " " << written << " byte(s)");
     return written;
 }

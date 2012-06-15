@@ -17,7 +17,7 @@ public:
     Socket(SocketRef socket) : socket_(socket.fd) {}
     Socket(Socket& socket) : socket_(socket.socket_.release()) {}
     Socket(int type, const std::string& host, unsigned short port);
-    virtual ~Socket();
+    ~Socket();
 
     Socket& operator=(Socket& socket) {
         Socket(socket).socket_.swap(socket_);
@@ -65,7 +65,6 @@ public:
     }
 
     int get() const { return socket(); }
-
     TCPSocket accept() const;
     Socket::Request read(char* buf, size_t size);
     int write(const char* buf, size_t size, const Target& = boost::none);

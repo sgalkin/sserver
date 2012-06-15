@@ -20,6 +20,8 @@ public:
     typedef erase_iterator<Ready> iterator;
     typedef void const_iterator; // for BOOST_FOREACH compatibility
 
+    Poll() : outdated_(false) {}
+
     void add(MessageBase* msg);
     void remove(const MessageBase* msg);
 
@@ -28,7 +30,7 @@ public:
     iterator begin() { return iterator(ready_); }
     iterator end() { return iterator();  } 
 
-    void perform() { while(!(poll_.empty() || poll())); }
+    void perform();
 
 private:
     bool poll();
@@ -36,18 +38,19 @@ private:
     Queue queue_;
     Pollfd poll_;
     Ready ready_;
+    bool outdated_;
 };
 
 
 template<typename FDType>
 class Suppress : public Input, public Control<FDType> {
 public:
-    typedef void type;
+    typedef void* type;
     bool perform(FDType* fd) {
         suppress(fd);
         return true;
     }
-    void data() {}
+    void* data() { return 0; }
 };
 
 
@@ -55,7 +58,7 @@ template<typename Task>
 class PollHandler {
 public: 
     PollHandler(Pipe* notify) : notify_(notify) {
-        poll_.add(new Message<Pipe, Suppress>(notify_));
+        poll_.add(new Message< Pipe, Suppress<Pipe> >(notify_));
     }
 
     virtual ~PollHandler() {};

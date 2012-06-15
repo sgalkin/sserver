@@ -31,9 +31,7 @@ public:
     ~Server();
 
     void process();
-    bool is_daemon() const {
-        return config_.option<bool>("daemon");
-    }
+    bool is_daemon() const { return config_.option<bool>("daemon"); }
 
 private:
     Config config_;    

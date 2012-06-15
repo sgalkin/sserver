@@ -24,8 +24,6 @@ TESTS = \
 	tests/test_file.cpp \
 	tests/test_file_io.cpp \
 	tests/test_interface.cpp \
-	tests/test_log.cpp \
-	tests/test_message.cpp \
 	tests/test_pool.cpp \
 	tests/test_request.cpp \
 	tests/test_socket.cpp \

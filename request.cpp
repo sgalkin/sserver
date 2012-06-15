@@ -54,7 +54,7 @@ Request::Request(const std::string& request)
     std::string query;
     boost::tie(method_, query) = split(request.substr(0, request.rfind("\r\n")), ' ');
     boost::to_upper(method_);
-        
+
     Methods::const_iterator method = methods_.find(method_);
     if(method == methods_.end()) throw BadRequest();
 
@@ -68,7 +68,7 @@ Request::Request(const std::string& request)
 }
 
 bool validate_username(const std::string& username) {
-    static const boost::regex re("^[[:alnum:]+/](\\ *[[:alnum:][:punct:]])*$");    
+    static const boost::regex re("^[[:alnum:]+/](\\ *[[:alnum:][:punct:]])*$");
     return boost::regex_match(username.begin(), username.end(), re);
 }
 
@@ -78,4 +78,3 @@ bool validate_email(const std::string& email) {
         "^[[:alnum:]!#$%&'*+/=?^_`{|}~-](\\.?[[:alnum:]!#$%&'*+/=?^_`{|}~-]+)*@[[:alnum:].-]+$");
     return boost::regex_match(email.begin(), email.end(), re);
 }
-

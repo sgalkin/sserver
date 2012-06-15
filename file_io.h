@@ -8,51 +8,18 @@
 #include <string>
 #include <list>
 
-template<typename FDType> class Find;
-
-template<>
-class Find<File>: public Input, public Control<File> {
-public: 
+class Find : public Input, public Control<File> {
+public:
     typedef std::pair< int, boost::optional<std::string> > type;
 
     explicit Find(const std::string& name) :
         name_(name), data_(0, boost::none) {}
 
-    bool perform(File* file) {
-        char buf[65536];
-        int read = 0;
-        do {
-            read = file->read(buf, sizeof(buf) - 1);
-            if(read == 0) return hangup(file);
-
-            buf[read] = 0;
-            char* tail = strrchr(buf, '\n');
-            if(tail == 0) { // inside very long message
-                record_ += std::string(buf);
-                continue;
-            }
-            file->seek((tail - (buf + read)) + 1);
-            *tail = 0;
-            if((data_.second = find(buf))) return true;
-        } while(read == sizeof(buf) - 1);
-        return file->seek(0) == file->size();
-    }
-    
+    bool perform(File* file);    
     type data() { return data_; }
 
 private:
-    boost::optional<std::string> find(char* buf) {
-        char* tail = 0;
-        for(char* tok = strtok_r(buf, "\n", &tail);
-            tok != 0;
-            tok = strtok_r(0, "\n", &tail)) {
-            ++data_.first;
-            Record rec(record_ + std::string(tok));
-            record_.clear();
-            if(rec.name() == name_) return rec.email();
-        }
-        return boost::none;
-    }
+    boost::optional<std::string> find(char* buf);
 
     std::string name_;
     type data_;
@@ -67,7 +34,6 @@ public:
 
     bool perform(FDType* fd) {
         code_ = suppress(fd);
-        if(code_ != Codes::OK) this->fail();
         return true;
     }
     type data() { return code_; }
@@ -77,8 +43,8 @@ private:
 
 
 class WriteTask {
-    typedef Message<Own<File>, Find, NOP, WriteTask> FindRecord;
-    typedef Message<Own<File>, NOP, Write, WriteTask> WriteRecord;
+    typedef Message<Own<File>, Find, NOP<File>, WriteTask> FindRecord;
+    typedef Message<Own<File>, NOP<File>, Write<File>, WriteTask> WriteRecord;
 
     enum State { READ, WRITE, DONE };
 public:
@@ -90,7 +56,7 @@ public:
     MessageBase* message();
 
 private:
-    std::string filename_;       // one thread for all files not good, but enough here
+    std::string filename_; // one thread for all file names not good, but enough here
     Record record_;
     Pipe* notify_;
     State state_;
@@ -98,7 +64,9 @@ private:
 
 class WriteHandler : public PollHandler<WriteTask> {
 public:
-    explicit WriteHandler(Pipe* notify) : PollHandler<WriteTask>(notify) {}
+    explicit WriteHandler(Pipe* notify) :
+        PollHandler<WriteTask>(notify) 
+    {}
 
     void add_task(WriteTask client) { clients_.push_back(client); }
 

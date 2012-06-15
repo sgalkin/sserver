@@ -3,7 +3,7 @@
 #include "../file_io.h"
 #include "../fd.h"
 #include "../pool.h"
-#include "../tempfile.h"
+#include "tempfile.h"
 #include <boost/thread.hpp>
 #include <boost/lexical_cast.hpp>
 #include <list>
@@ -11,7 +11,7 @@
 #include <fstream>
 #include <iterator>
 
-typedef Message<Own<Pipe>, Status> WStatus;
+typedef Message<Own<Pipe>, Status<Pipe> > WStatus;
 
 class WriterTest {
 public:
@@ -40,8 +40,7 @@ private:
 BOOST_AUTO_TEST_CASE(test_write_file_not_exists) {
     WriterTest wt;
     wt.add("non_existent", Record("aaa3", "bbb3"));
-    BOOST_FOREACH(MessageBase* msg, wt.perform()) {
-        BOOST_CHECK(msg->is_fail());
+    BOOST_FOREACH(MessageBase* msg, wt.perform()) {        
         BOOST_CHECK(dynamic_cast<WStatus*>(msg)->data() == Codes::UNAVAILABLE);
         wt.remove(msg);
     }
@@ -55,7 +54,6 @@ BOOST_AUTO_TEST_CASE(test_data_in_file) {
     WriterTest wt;
     wt.add(tmp.name(), Record("aaa3", "bbb"));
     BOOST_FOREACH(MessageBase* msg, wt.perform()) {
-        BOOST_CHECK(msg->is_fail());
         BOOST_CHECK(dynamic_cast<WStatus*>(msg)->data() == Codes::CONFLICT);
         wt.remove(msg);
     }
@@ -77,7 +75,6 @@ BOOST_AUTO_TEST_CASE(test_write_overload) {
     } while(i <= 100);
     wt.add(tmp.name(), Record("new", "fooo"));
     BOOST_FOREACH(MessageBase* msg, wt.perform()) {
-        BOOST_CHECK(msg->is_fail());
         BOOST_CHECK(dynamic_cast<WStatus*>(msg)->data() == Codes::OVERLOADED);
         wt.remove(msg);
     }
@@ -157,7 +154,7 @@ BOOST_AUTO_TEST_CASE(test_write_permissions_ro) {
         WriterTest wt;
         wt.add("/etc/passwd", Record("ccc3", "bbb"));
         BOOST_FOREACH(MessageBase* msg, wt.perform()) {
-            BOOST_CHECK(msg->is_fail());
+            BOOST_CHECK(dynamic_cast<WStatus*>(msg)->data() == Codes::UNAVAILABLE);
             wt.remove(msg);
         }
     }
@@ -170,14 +167,14 @@ BOOST_AUTO_TEST_CASE(test_write_permissions_no) {
         WriterTest wt;
         wt.add("/etc/shadow", Record("ccc3", "bbb"));
         BOOST_FOREACH(MessageBase* msg, wt.perform()) {
-            BOOST_CHECK(msg->is_fail());
+            BOOST_CHECK(dynamic_cast<WStatus*>(msg)->data() == Codes::UNAVAILABLE);
             wt.remove(msg);
         }
     }
 }
 
 BOOST_AUTO_TEST_CASE( test_find_empty ) {
-    Find<File> find("foo");
+    Find find("foo");
     File file("tests/empty");
     BOOST_CHECK(find.perform(&file));
     BOOST_CHECK(!find.data().second);
@@ -185,7 +182,7 @@ BOOST_AUTO_TEST_CASE( test_find_empty ) {
 }
 
 BOOST_AUTO_TEST_CASE( test_find_not_found ) {
-    Find<File> find("foo");
+    Find find("foo");
     File file("tests/test.dat");
     BOOST_CHECK(find.perform(&file));
     BOOST_CHECK(!find.data().second);
@@ -194,7 +191,7 @@ BOOST_AUTO_TEST_CASE( test_find_not_found ) {
 }
 
 BOOST_AUTO_TEST_CASE( test_find_found_short ) {
-    Find<File> find("test_bar");
+    Find find("test_bar");
     File file("tests/test.dat");
     BOOST_CHECK(find.perform(&file));
     BOOST_CHECK(!find.is_fail());
@@ -202,7 +199,7 @@ BOOST_AUTO_TEST_CASE( test_find_found_short ) {
 }
 
 BOOST_AUTO_TEST_CASE( test_find_found_short_2 ) {
-    Find<File> find("test_baz");
+    Find find("test_baz");
     File file("tests/test.dat");
     BOOST_CHECK(find.perform(&file));
     BOOST_CHECK(!find.is_fail());
@@ -213,7 +210,7 @@ BOOST_AUTO_TEST_CASE( test_find_found_long ) {
     char buf[98306];
     memset(buf, 'a', sizeof(buf));
     buf[sizeof(buf) - 1] = 0;
-    Find<File> find(buf);
+    Find find(buf);
     File file("tests/test.dat");
     BOOST_CHECK(find.perform(&file));
     BOOST_CHECK(!find.is_fail());

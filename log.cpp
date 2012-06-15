@@ -1,4 +1,5 @@
 #include "log.h"
+#include "exception.h"
 #include <limits.h>
 #include <stdio.h>
 #include <iostream>

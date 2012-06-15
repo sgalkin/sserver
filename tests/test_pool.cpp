@@ -4,6 +4,8 @@
 #include <boost/thread.hpp>
 #include <set>
 
+namespace {
+
 class Sleeper {
 public:
     static size_t threads_count() { return threads_.size(); }
@@ -36,9 +38,9 @@ boost::mutex Sleeper::mutex_;
 std::set<boost::thread::id> Sleeper::threads_;
 std::set<int> Sleeper::tasks_;
 
+}
 
 BOOST_AUTO_TEST_CASE( test_pool ) {
-    set_level(Logger::DEBUG);
     size_t size = 16;
     time_t start = time(0);
     {
@@ -46,7 +48,7 @@ BOOST_AUTO_TEST_CASE( test_pool ) {
         for(size_t i = 0; i < 2 * size; ++i) {
             p.add_task(i);
         }
-        sleep(3); // TODO: stop pool gently
+        sleep(3);
     }
     BOOST_CHECK_EQUAL(Sleeper::threads_count(), size);
     BOOST_CHECK_EQUAL(Sleeper::tasks_count(), 2 * size);

@@ -20,4 +20,3 @@ std::map<Codes::Code, std::string> Codes::strings_ = boost::assign::map_list_of
     (Codes::CONFLICT, message(Codes::CONFLICT, "Conflict"))
     (Codes::UNAVAILABLE, message(Codes::UNAVAILABLE, "Service unavailable"))
     .to_container(strings_);
-    

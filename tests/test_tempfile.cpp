@@ -1,5 +1,5 @@
 #include "test.h"
-#include "../tempfile.h"
+#include "tempfile.h"
 #include <boost/filesystem.hpp>
 
 namespace fs = boost::filesystem;

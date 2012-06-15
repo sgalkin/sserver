@@ -47,7 +47,6 @@ private:
 
 Config::Config(const std::string& path) : path_(path) {
     reconfigure();
-
     REQUIRE(geteuid() == 0 || option<int>("tcp_port") > 1024,
             "Only root can use tcp_port less then 1024");
     REQUIRE(geteuid() == 0 || option<int>("udp_port") > 1024,
@@ -85,7 +84,6 @@ void Config::reconfigure() {
 }
 
 
-
 Server::Server(const std::string& path) : config_(path)
 {
     Interface iface;
@@ -109,11 +107,11 @@ void Server::process() {
     Pool<TCPClient*, ClientHandler<TCPClient*> > tcp_pool;
     Pool<UDPClient*, ClientHandler<UDPClient*> > udp_pool;
 
-    Message<Pipe, Suppress>* reconfig = new Message<Pipe, Suppress>(pipe);
+    Message<Pipe, Suppress<Pipe> >* reconfig(new Message<Pipe, Suppress<Pipe> >(pipe));
     poll.add(reconfig);
-    TCPClient::Accept* accept = new TCPClient::Accept(tcp_.get());
+    TCPClient::TCPAccept* accept = new TCPClient::TCPAccept(tcp_.get());
     poll.add(accept);
-    UDPClient::Receive* udp_receive = new UDPClient::Receive(udp_.get());
+    UDPClient::SReceive* udp_receive = new UDPClient::SReceive(udp_.get());
     poll.add(udp_receive);
 
     std::string datafile = config_.option<std::string>("datafile");

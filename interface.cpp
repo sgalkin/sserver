@@ -30,15 +30,12 @@ private:
 Interface::Interface() {
     Interfaces ifs;
     for(const struct ifaddrs* i = ifs; i; i = i->ifa_next) {
-        if(!i->ifa_addr ||
-           !(i->ifa_addr->sa_family == AF_INET ||
-             false)) // TODO: think about ipv6
-//             i->ifa_addr->sa_family == AF_INET6))
-            continue;
+        // TODO: think about ipv6  i->ifa_addr->sa_family == AF_INET6
+        if(!(i->ifa_addr && i->ifa_addr->sa_family == AF_INET)) continue;
         char host[NI_MAXHOST];
-        CHECK_CALL_ERROR(getnameinfo(i->ifa_addr,
-                                     i->ifa_addr->sa_family == AF_INET ?
-                                     sizeof(sockaddr_in) : sizeof(sockaddr_in6),
+        CHECK_CALL_ERROR(getnameinfo(i->ifa_addr, sizeof(sockaddr_in),
+                                     // i->ifa_addr->sa_family == AF_INET ?
+                                     // sizeof(sockaddr_in) : sizeof(sockaddr_in6),
                                      host, sizeof(host), 0, 0,
                                      NI_NUMERICHOST | NI_NUMERICSERV),
                          "getnameinfo(" << i->ifa_name << ")", gai_strerror);
