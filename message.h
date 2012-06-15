@@ -27,7 +27,7 @@ public:
     void write() { DEBUG("write"); do_write(); notify(); } 
     void hangup() { DEBUG("hangup"); do_hangup(); notify(); }
     void error() { DEBUG("error"); do_error(); notify(); }
-    void pass() {}
+//    void pass() {}
 
     virtual int fd() const = 0;
     virtual int events() const = 0;
@@ -71,8 +71,7 @@ public:
 
     bool fail(FDType* fd = 0) {
         if(fd) ERROR(get_error(fd));
-        fail_ = true;
-        return fail_;
+        return fail_ = true;
     }
 
 private:
@@ -108,25 +107,9 @@ template<typename FDType>
 inline bool Control<FDType>::hangup(FDType* fd) {
     int f = FDHelper<FDType, Control<FDType>, NOP<FDType> >::get(fd);
     DEBUG("fd(" << f << ") disconnected");
-    eof_ = true;
-    return eof_;
+    return eof_ = true;
 }
 
-
-// template<typename FDType>
-// class Hangup : public IOEvent<POLLHUP> {
-// public:
-//     Hangup() : eof_(false) {}
-//     void perform(FDType* socket) {
-//         int fd = FDHelper<FDType, Hangup<FDType>, NOP<FDType> >::get(socket);
-//         DEBUG("fd(" << fd << ") disconnected");
-//         eof_ = true; 
-//     }
-//     bool is_eof() const { return eof_; }
-
-// private:
-//     bool eof_;
-// };
 
 template<typename FDType> class Accept;
 
@@ -146,10 +129,10 @@ private:
     std::auto_ptr<TCPSocket> peer_;
 };
 
-typedef std::pair< std::string, Socket::Target > SReq;
 
 template<typename FDType>
 class Receive : public Input, public Control<FDType> {
+    typedef std::pair< std::string, Socket::Target > SReq;
 public:
     typedef SReq type;
     bool perform(FDType* socket) {
@@ -157,55 +140,16 @@ public:
         // slow TCP clients with TCP_NODELAY not supported yet
         Socket::Request req = socket->read(buf, sizeof(buf));
         if(req.first == 0) return hangup(socket);
-        //client_ = Client(socket->get(), std::string(buf, req.first), req.second);
         req_ = SReq(std::string(buf, req.first), req.second);
         return true;
     }
 
     type data() { return req_; }
-//    bool is_eof() const { return hangup_.is_eof(); }
 
 private:    
     SReq req_;
-//    Hangup<FDType> hangup_;
 };
 
-template<typename FDType>
-class Penalty : public Input, public Control<FDType> {
-public:
-    typedef void* type;
-//    Penalty() {}
-//    explicit Penalty(MessageBase* msg) : msg_(msg) {}
-    bool perform(FDType* pipe) {
-        suppress(*pipe);
-        return true;
-    }
-    type data() { return 0; }//return msg_; }
-
-//private:
-    // potential memory leak
-//    MessageBase* msg_;
-};
-
-// template<typename FDType>
-// class Echo : public Output, public Control<FDType> {
-// public:
-//     typedef SReq type;
-//     Echo(const SReq& data) :
-//         data_(data.first), client_(data.second), pos_(0) {}
-
-//     bool perform(FDType* socket) {
-//         int pos = socket->write(&data_[pos_], data_.size() - pos_, client_);
-//         if(pos == 0) return hangup(socket);
-//         pos_ += pos;
-//         return pos_ == data_.size();
-//     }
-
-// private:
-//     std::string data_;
-//     Socket::Target client_;
-//     size_t pos_;
-// };
 
 template<typename FDType>
 class Write : public Output, public Control<FDType> {
@@ -231,18 +175,6 @@ private:
 
 
 
-// template<typename FDType>
-// class Error : public IOEvent<POLLERR> {
-// public:
-//     void perform(FDType* fd) { error_ = get_error(fd); }
-//     void perform(const std::string& error) { error_ = error; }
-//     operator const std::string& () const { return error_; }
-//     void throw_error() const { REQUIRE(error_.empty(), error_); }
-// private:
-//     std::string error_;
-// };
-
-
 template<typename T>
 struct NotifyHelper {
     template<typename U>
@@ -261,22 +193,20 @@ bool try_do(H& handler, F fd) {
         return handler.perform(fd);
     } catch(std::runtime_error& ex) {
         ERROR(ex.what());
-        return handler.fail();
+        handler.fail();
     }
+    return true;
 }
 
 template<typename Type,         
          template <typename F> class Read = NOP,
          template <typename F> class Write = NOP,
          typename Notify = Pipe>
-         // template <typename F> class Hangup = Hangup,
-         // template <typename F> class Error = Error>
 class Message : public MessageBase {
     typedef typename Storage<Type>::base FDType;
 public:
     enum { 
         Event = (Read<FDType>::Event | Write<FDType>::Event | POLLHUP | POLLERR)
-//                 Hangup<FDType>::Event | Error<FDType>::Event)
     };
 
     explicit Message(FDType* fd, Notify* notify = 0,
@@ -300,7 +230,6 @@ public:
     bool is_ready() const { return ready_ || is_eof() || is_fail(); }
     bool is_eof() const { return reader_.is_eof() || writer_.is_eof(); }
     bool is_fail() const { return reader_.is_fail() || writer_.is_fail(); }
-//    void throw_error() const { error_.throw_error(); }
 
     FDType* get() { return Storage<Type>::get(fd_); }
     int fd() const { return FDHelper<FDType, Read<FDType>, Write<FDType> >::get(Storage<Type>::get(fd_)); }
@@ -319,15 +248,11 @@ private:
         reader_.fail(Storage<Type>::get(fd_));
         writer_.fail(Storage<Type>::get(fd_));
     }
-    //{ error_.perform(Storage<Type>::get(fd_)); }
-    //    void do_error(const std::string& error) { error_.perform(error); }
 
     typename Storage<Type>::type fd_;
     Notify* notify_;
     Read<FDType> reader_;
     Write<FDType> writer_;
-    // Hangup<FDType> hangup_;
-    // Error<FDType> error_;
 
     bool ready_;
 };

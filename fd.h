@@ -23,7 +23,7 @@ public:
     FD(FD& fd) : fd_(fd.release()) {} // should be FD&&
 
     explicit FD(int fd, bool blocking = true) : fd_(fd) {
-        REQUIRE(fd_ != -1, "Invalid file descriptor");
+        CHECK_CALL(fd_, "open fd"); // typical call: FD(open(...)), so errno is correct usually
         if(blocking) set_flag(O_NONBLOCK);
     }
     ~FD() {

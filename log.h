@@ -4,17 +4,8 @@
 #include "fd.h"
 #include "exception.h"
 #include <string>
-#include <sstream>
 #include <boost/utility.hpp>
-#include <limits.h>
-#include <stdio.h>
-
-inline std::string exe_path() {
-    char buf[PATH_MAX];
-    snprintf(buf, sizeof(buf), "/proc/%d/cmdline", getpid());
-    FD(open(buf, O_RDONLY)).read(buf, sizeof(buf));
-    return buf;
-}
+#include <sstream>
 
 class Logger : boost::noncopyable {
 public:
@@ -25,15 +16,10 @@ public:
     void set_log(int fd) { log_.reset(fd); }
     Level level() const { return level_; }
 
-    static Logger& instance() {
-        static Logger logger_(exe_path());
-        return logger_;
-    }
+    static Logger& instance();
 
 private:
-    explicit Logger(const std::string& exe) :
-        prefix_(exe.substr(exe.rfind('/') + 1)),
-        level_(ERROR) {}
+    explicit Logger(const std::string& exe);
 
     std::string prefix_;
     Level level_;
@@ -45,23 +31,15 @@ inline void set_level(Logger::Level level) {
     Logger::instance().set_level(level);
 }
 
-inline void set_log(int log_fd) {
-    Logger::instance().set_log(log_fd);
-}
+void set_level(const std::string& level);
 
-inline const char* asString(Logger::Level level) {
-    static const char* strings[] = { "DEBUG", "WARN", "ERROR", "FATAL"};
-    REQUIRE(unsigned(level) < sizeof(strings) / sizeof(strings[0]), "Unknown level");
-    return strings[level];
-}
-
-#define MESSAGE(lvl, message) do {                      \
-        if(Logger::instance().level() <= (lvl)) {       \
-            std::stringstream s;                        \
-            s << message;                               \
-            Logger::instance().write((lvl), s.str());   \
-        }                                               \
-    } while(false)                                      \
+#define MESSAGE(lvl, message) do {                                      \
+        if(Logger::instance().level() <= (lvl)) {                       \
+            std::stringstream s_MESSAGE;                                \
+            s_MESSAGE << message;                                       \
+            Logger::instance().write((lvl), s_MESSAGE.str());           \
+        }                                                               \
+    } while(false)                                                      \
 
 #define DEBUG(message) MESSAGE(Logger::DEBUG, message)
 #define WARN(message) MESSAGE(Logger::WARN, message)

@@ -2,20 +2,10 @@
 #include "exception.h"
 #include "log.h"
 #include "message.h"
+// #include <boost/assign.hpp>
+// #include <boost/function.hpp>
 
 namespace {
-
-typedef std::map< int, boost::function<void(MessageBase&)> > Handler;
-
-inline Handler handlers() {
-    Handler handler;
-    handler.insert(std::make_pair(POLLIN, &MessageBase::read));
-    handler.insert(std::make_pair(POLLOUT, &MessageBase::write));
-    handler.insert(std::make_pair(POLLERR, &MessageBase::error));
-    handler.insert(std::make_pair(POLLHUP, &MessageBase::hangup));
-    handler.insert(std::make_pair(0, &MessageBase::pass));
-    return handler;
-}
 
 inline struct pollfd make_pollfd(const MessageBase* msg) {
     struct pollfd pollfd;
@@ -27,9 +17,8 @@ inline struct pollfd make_pollfd(const MessageBase* msg) {
 
 }
 
-const Poll::Handler Poll::handler_ = handlers();
-
 void Poll::add(MessageBase* msg) {
+    if(msg == 0) return;
     int fd = msg->fd();
     Queue::iterator result = queue_.insert(fd, msg);
 //        std::pair<Queue::iterator, bool> result = queue_.insert(fd, msg);
@@ -38,6 +27,7 @@ void Poll::add(MessageBase* msg) {
 }
 
 void Poll::remove(const MessageBase* msg) {
+    if(msg == 0) return;
     // TODO: slow lookup
     for(Pollfd::iterator it = poll_.begin(); it != poll_.end(); ++it) {
         if(it->fd == msg->fd() && it->events == msg->events()) {
@@ -56,6 +46,14 @@ void Poll::remove(const MessageBase* msg) {
 }
 
 bool Poll::poll() {
+//    typedef std::map< int, boost::function<void(MessageBase&)> > Handler;
+//    static const Handler handler = boost::assign::map_list_of
+        // (POLLIN, &MessageBase::read)
+        // (POLLOUT, &MessageBase::write)
+        // (POLLERR, &MessageBase::error)
+        // (POLLHUP, &MessageBase::hangup)
+        // (0, &MessageBase::pass).to_container(handler);
+
     int ready = 0;
     CHECK_CALL((ready = ::poll(&poll_[0], poll_.size(), -1)), "poll");
     for(Pollfd::iterator it = poll_.begin(); it != poll_.end() && ready > 0; ++it) {
@@ -65,10 +63,14 @@ bool Poll::poll() {
 //                MessageBase& msg = queue_.at(it->fd); //*v.second;
             MessageBase& msg = *v.second;
             --ready;
-            handler_.at(it->revents & POLLERR)(msg);
-            handler_.at(it->revents & POLLHUP)(msg);
-            handler_.at(it->revents & POLLIN)(msg);
-            handler_.at(it->revents & POLLOUT)(msg);
+            // // handler.at(it->revents & POLLERR)(msg);
+            // // handler.at(it->revents & POLLHUP)(msg);
+            // // handler.at(it->revents & POLLIN)(msg);
+            // // handler.at(it->revents & POLLOUT)(msg);
+            if((it->revents & POLLERR) == POLLERR) msg.error();
+            if((it->revents & POLLHUP) == POLLHUP) msg.hangup();
+            if((it->revents & POLLIN) == POLLIN) msg.read();
+            if((it->revents & POLLOUT) == POLLOUT) msg.write();
             it->revents = 0;
             if(msg.is_ready()) ready_.push_back(&msg);
         }

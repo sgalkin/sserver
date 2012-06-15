@@ -1,6 +1,7 @@
 #ifndef SSERVER_SLEEP_H_INCLUDED
 #define SSERVER_SLEEP_H_INCLUDED
 
+#include "pool.h"
 #include <list>
 
 class Pipe;
@@ -20,5 +21,7 @@ private:
     Pipe* pipe_;
     Clients clients_;
 };
+
+typedef Pool<Sleep::Client, Sleep> Sleeper;
 
 #endif // SSERVER_SLEEP_H_INCLUDED

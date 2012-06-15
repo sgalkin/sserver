@@ -11,6 +11,8 @@
 #include <fstream>
 #include <iterator>
 
+typedef Message<Own<Pipe>, Status> WStatus;
+
 class WriterTest {
 public:
     WriterTest() : writer_(1) {}
@@ -18,7 +20,7 @@ public:
     void add(const std::string& file, const Record& rec) {
         std::auto_ptr<Pipe> pipe(new Pipe);
         writer_.add_task(WriteTask(file, rec, pipe.get()));
-        poll_.add(new Message<Own<Pipe>, Suppress>(pipe.release()));
+        poll_.add(new WStatus(pipe.release()));
     }
 
     void remove(MessageBase* msg) {
@@ -31,15 +33,16 @@ public:
     }    
 
 private:
-    Pool<WriteTask, Writer> writer_;
+    Writer writer_;
     Poll poll_;
 };
 
-BOOST_AUTO_TEST_CASE(test_file_not_exists) {
+BOOST_AUTO_TEST_CASE(test_write_file_not_exists) {
     WriterTest wt;
     wt.add("non_existent", Record("aaa3", "bbb3"));
     BOOST_FOREACH(MessageBase* msg, wt.perform()) {
         BOOST_CHECK(msg->is_fail());
+        BOOST_CHECK(dynamic_cast<WStatus*>(msg)->data() == Codes::UNAVAILABLE);
         wt.remove(msg);
     }
 }
@@ -53,11 +56,35 @@ BOOST_AUTO_TEST_CASE(test_data_in_file) {
     wt.add(tmp.name(), Record("aaa3", "bbb"));
     BOOST_FOREACH(MessageBase* msg, wt.perform()) {
         BOOST_CHECK(msg->is_fail());
+        BOOST_CHECK(dynamic_cast<WStatus*>(msg)->data() == Codes::CONFLICT);
         wt.remove(msg);
     }
 }
 
-BOOST_AUTO_TEST_CASE(test_no_data_in_file) {
+BOOST_AUTO_TEST_CASE(test_write_overload) {
+    TempFile tmp("tests/foobar");
+    WriterTest wt;
+    for(int i = 0; i <= 100; ++i) {
+        wt.add(tmp.name(), Record(boost::lexical_cast<std::string>(i), "fooo"));
+    }
+    int i = 0;
+    do {
+        BOOST_FOREACH(MessageBase* msg, wt.perform()) {
+            ++i;
+            BOOST_CHECK(!msg->is_fail());
+            wt.remove(msg);
+        }
+    } while(i <= 100);
+    wt.add(tmp.name(), Record("new", "fooo"));
+    BOOST_FOREACH(MessageBase* msg, wt.perform()) {
+        BOOST_CHECK(msg->is_fail());
+        BOOST_CHECK(dynamic_cast<WStatus*>(msg)->data() == Codes::OVERLOADED);
+        wt.remove(msg);
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE(test_write_no_data_in_file) {
     TempFile tmp("tests/foobar");
     std::string data = "aaa3;bbb3\n";
     tmp.write(data.c_str(), data.size());
@@ -81,7 +108,7 @@ BOOST_AUTO_TEST_CASE(test_no_data_in_file) {
 static int num = 0;
 void add_task(WriterTest& wt, const std::string& fname) {
     static boost::mutex mutex;
-    for(int i = 0; i < 16; ++i) {
+    for(int i = 0; i < 10; ++i) {
         std::string name;
         {
             boost::mutex::scoped_lock lock(mutex);
@@ -91,11 +118,11 @@ void add_task(WriterTest& wt, const std::string& fname) {
     }
 }
 
-BOOST_AUTO_TEST_CASE(test_concurent) {
+BOOST_AUTO_TEST_CASE(test_write_concurent) {
     boost::thread_group threads;
     TempFile tmp("tests/foobar");    
     WriterTest wt;
-    for(int i = 0; i < 16; ++i) {
+    for(int i = 0; i < 10; ++i) {
         threads.create_thread(
             boost::bind(&add_task, boost::ref(wt), boost::cref(tmp.name())));
     }
@@ -107,7 +134,7 @@ BOOST_AUTO_TEST_CASE(test_concurent) {
             BOOST_CHECK(!msg->is_fail());
             wt.remove(msg);
         }
-    } while(i < 16 * 16);
+    } while(i < 10 * 10);
 
     std::ifstream in(tmp.name().c_str());
     std::set<std::string> tst;
@@ -115,7 +142,7 @@ BOOST_AUTO_TEST_CASE(test_concurent) {
               std::istream_iterator<std::string>(),
               std::inserter(tst, tst.end()));
     std::set<std::string> exp;
-    for(int i = 0; i != 16 * 16; ++i) {
+    for(int i = 0; i != 10 * 10; ++i) {
         std::stringstream s;
         s << i << ";" << i;
         exp.insert(s.str());
@@ -123,11 +150,37 @@ BOOST_AUTO_TEST_CASE(test_concurent) {
     BOOST_CHECK_EQUAL_COLLECTIONS(tst.begin(), tst.end(), exp.begin(), exp.end());
 }
 
+BOOST_AUTO_TEST_CASE(test_write_permissions_ro) {
+    if(getuid() == 0) {
+        BOOST_CHECK(true);
+    } else {
+        WriterTest wt;
+        wt.add("/etc/passwd", Record("ccc3", "bbb"));
+        BOOST_FOREACH(MessageBase* msg, wt.perform()) {
+            BOOST_CHECK(msg->is_fail());
+            wt.remove(msg);
+        }
+    }
+}
+
+BOOST_AUTO_TEST_CASE(test_write_permissions_no) {
+    if(getuid() == 0) {
+        BOOST_CHECK(true);
+    } else {
+        WriterTest wt;
+        wt.add("/etc/shadow", Record("ccc3", "bbb"));
+        BOOST_FOREACH(MessageBase* msg, wt.perform()) {
+            BOOST_CHECK(msg->is_fail());
+            wt.remove(msg);
+        }
+    }
+}
+
 BOOST_AUTO_TEST_CASE( test_find_empty ) {
     Find<File> find("foo");
     File file("tests/empty");
     BOOST_CHECK(find.perform(&file));
-    BOOST_CHECK(!find.data());
+    BOOST_CHECK(!find.data().second);
     BOOST_CHECK(find.is_eof());
 }
 
@@ -135,7 +188,7 @@ BOOST_AUTO_TEST_CASE( test_find_not_found ) {
     Find<File> find("foo");
     File file("tests/test.dat");
     BOOST_CHECK(find.perform(&file));
-    BOOST_CHECK(!find.data());
+    BOOST_CHECK(!find.data().second);
     BOOST_CHECK(find.perform(&file));
     BOOST_CHECK(find.is_eof());
 }
@@ -144,14 +197,16 @@ BOOST_AUTO_TEST_CASE( test_find_found_short ) {
     Find<File> find("test_bar");
     File file("tests/test.dat");
     BOOST_CHECK(find.perform(&file));
-    BOOST_CHECK_EQUAL(*find.data(), "data_test_bar");
+    BOOST_CHECK(!find.is_fail());
+    BOOST_CHECK_EQUAL(*find.data().second, "data_test_bar");
 }
 
 BOOST_AUTO_TEST_CASE( test_find_found_short_2 ) {
     Find<File> find("test_baz");
     File file("tests/test.dat");
     BOOST_CHECK(find.perform(&file));
-    BOOST_CHECK_EQUAL(*find.data(), "data_test_baz");
+    BOOST_CHECK(!find.is_fail());
+    BOOST_CHECK_EQUAL(*find.data().second, "data_test_baz");
 }
 
 BOOST_AUTO_TEST_CASE( test_find_found_long ) {
@@ -161,5 +216,6 @@ BOOST_AUTO_TEST_CASE( test_find_found_long ) {
     Find<File> find(buf);
     File file("tests/test.dat");
     BOOST_CHECK(find.perform(&file));
-    BOOST_CHECK_EQUAL(*find.data(), "foo");
+    BOOST_CHECK(!find.is_fail());
+    BOOST_CHECK_EQUAL(*find.data().second, "foo");
 }

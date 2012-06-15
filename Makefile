@@ -1,11 +1,13 @@
 TARGET = sserver
 
 SOURCES = \
+	code.cpp \
 	file_io.cpp \
 	interface.cpp \
 	main.cpp \
 	poll.cpp \
 	log.cpp \
+	request.cpp \
 	server.cpp \
 	socket.cpp \
 	sleep.cpp \
@@ -14,6 +16,7 @@ LIBS = \
 	boost_filesystem \
 	boost_thread \
 	boost_program_options \
+	boost_regex \
 
 TESTS = \
 	tests/test_erase_iterator.cpp \
@@ -24,12 +27,10 @@ TESTS = \
 	tests/test_log.cpp \
 	tests/test_message.cpp \
 	tests/test_pool.cpp \
+	tests/test_request.cpp \
 	tests/test_socket.cpp \
 	tests/test_sleep.cpp \
 	tests/test_tempfile.cpp \
-
-
-#	tests/test_traits.cpp \
 
 TESTS_LIBS = \
 	boost_unit_test_framework \
@@ -39,7 +40,6 @@ LDFLAGS += $(addprefix -l,${LIBS})
 TESTS_LDFLAGS += $(addprefix -l,${TESTS_LIBS})
 
 all: ${TARGET} check
-#	./$< -c config/sserver.conf
 
 ${TARGET}: ${SOURCES:.cpp=.o} Makefile
 	${LINK.cpp} -o $@ $(filter %.o,$^)
@@ -50,9 +50,7 @@ clean:
 	${RM} ${SOURCES:.cpp=.o} ${SOURCES:.cpp=.d} ${TARGET}
 	${RM} ${TESTS:.cpp=} ${TESTS:.cpp=.o} ${TESTS:.cpp=.d}
 
-#			$$(findstring $$(patsubst tests/test_%.o,%.o,$(1:.cpp=.o)),$$(SOURCES:.cpp=.o))
 define TEST_template
-#TODO: filter-out main
 $(1:.cpp=): $(1:.cpp=.o) \
 			$$(filter-out main.o,$$(SOURCES:.cpp=.o)) \
 			Makefile

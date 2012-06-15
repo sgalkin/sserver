@@ -5,7 +5,6 @@
 #include "erase_iterator.h"
 #include "message.h"
 #include <boost/ptr_container/ptr_map.hpp>
-#include <boost/function.hpp>
 #include <boost/foreach.hpp>
 #include <list>
 #include <vector>
@@ -16,8 +15,6 @@ class Poll {
     typedef std::list<MessageBase*> Ready;
     typedef boost::ptr_multimap<int, MessageBase> Queue;
     typedef std::vector<struct pollfd> Pollfd;
-
-    typedef std::map< int, boost::function<void(MessageBase&)> > Handler;
 
 public:
     typedef erase_iterator<Ready> iterator;
@@ -36,21 +33,23 @@ public:
 private:
     bool poll();
 
-    static const Handler handler_;
     Queue queue_;
     Pollfd poll_;
     Ready ready_;
 };
+
 
 template<typename FDType>
 class Suppress : public Input, public Control<FDType> {
 public:
     typedef void type;
     bool perform(FDType* fd) {
-        return suppress(fd) == OK ? true : this->fail();
+        suppress(fd);
+        return true;
     }
     void data() {}
 };
+
 
 template<typename Task>
 class PollHandler {

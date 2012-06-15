@@ -26,8 +26,9 @@ public:
     }
 
     ~Pool() {
-        running_ = false; // is race posible?
-        std::for_each(pipes_.begin(), pipes_.end(), boost::bind(&notify<Pipe>, _1, OK));
+        running_ = false;
+        std::for_each(pipes_.begin(), pipes_.end(),
+                      boost::bind(&notify<Pipe>, _1, Codes::OK));
         pool_.join_all();
     }
 
