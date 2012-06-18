@@ -25,7 +25,7 @@ public:
     void add(MessageBase* msg);
     void remove(const MessageBase* msg);
 
-    size_t size() const { return poll_.size(); }
+    size_t size() const { return queue_.size(); }
 
     iterator begin() { return iterator(ready_); }
     iterator end() { return iterator();  } 

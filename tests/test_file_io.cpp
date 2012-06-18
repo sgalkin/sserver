@@ -110,8 +110,8 @@ void add_task(WriterTest& wt, const std::string& fname) {
         {
             boost::mutex::scoped_lock lock(mutex);
             name = boost::lexical_cast<std::string>(num++);
+            wt.add(fname, Record(name, name));
         }
-        wt.add(fname, Record(name, name));
     }
 }
 

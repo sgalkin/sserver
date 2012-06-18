@@ -19,17 +19,11 @@ void Poll::add(MessageBase* msg) {
     if(msg == 0) return;
     int fd = msg->fd();
     Queue::iterator result = queue_.insert(fd, msg);
-    poll_.push_back(make_pollfd(result->second));
+    outdated_ = true;
 }
 
 void Poll::remove(const MessageBase* msg) {
     if(msg == 0) return;
-    for(Pollfd::iterator it = poll_.begin(); it != poll_.end(); ++it) {
-        if(it->fd == msg->fd() && it->events == msg->events()) {
-            poll_.erase(it);
-            break;
-        }
-    }
 
     boost::iterator_range<Queue::iterator> range = queue_.equal_range(msg->fd());
     for(Queue::iterator it = range.begin(); it != range.end(); ++it) {
@@ -54,9 +48,10 @@ void Poll::perform() {
 }
 
 bool Poll::poll() {
+    Pollfd poll(poll_);
     int ready = 0;
-    CHECK_CALL((ready = ::poll(&poll_[0], poll_.size(), -1)), "poll");
-    for(Pollfd::iterator it = poll_.begin(); it != poll_.end() && ready > 0; ++it) {
+    CHECK_CALL((ready = ::poll(&poll[0], poll.size(), -1)), "poll");
+    for(Pollfd::iterator it = poll.begin(); it != poll.end() && ready > 0; ++it) {
         if(it->revents == 0) continue;
         --ready;
         BOOST_FOREACH(Queue::value_type v, queue_.equal_range(it->fd)) {
